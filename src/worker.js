@@ -5,7 +5,7 @@
 import modelsFile from "../data/models.json" with { type: "json" };
 import gpusFile from "../data/gpus.json" with { type: "json" };
 import measuredFile from "../data/measured.json" with { type: "json" };
-import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels } from "./estimate.js";
+import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest } from "./estimate.js";
 
 const VERSION = "0.2.0";
 const OWNER = { name: "adamson-gh", url: "https://github.com/adamson-gh" };
@@ -33,8 +33,8 @@ const TOOLS = [
     description: "Whether a local AI model fits on a graphics card or Apple computer, the memory it needs (weights + context cache), and estimated " +
       "generation speed in tokens per second. Says whether the speed is estimated or measured, and what to change if it doesn't fit.",
     inputSchema: { type: "object", required: ["model", "hardware"], properties: {
-      model: { type: "string", description: "Model name, e.g. 'Llama 3.1 8B', 'qwen3:30b', 'gpt-oss 20b', or a size like '13B model'." },
-      hardware: { type: "string", description: "Graphics card or computer, e.g. 'RTX 3090', 'RX 7900 XTX', 'M4 Max', or memory like '12 GB card'." },
+      model: { type: "string", description: "Model name, e.g. 'Llama 3.1 8B', 'qwen3:30b', 'gpt-oss 20b', or a size like '13B model'. list_known gives exact names." },
+      hardware: { type: "string", description: "Graphics card or computer, e.g. 'RTX 3090', 'RX 7900 XTX', 'M2 Pro 32 GB', or memory like '12 GB card'. list_known gives exact names." },
       context: { type: "integer", description: "Context length in tokens (default 8192)." },
       quant: { type: "string", description: "Quantization, e.g. Q4_K_M (default), Q8_0, F16." },
       kv_cache: { type: "string", description: "Context cache type: f16 (default), q8_0 or q4_0." } } },
@@ -47,7 +47,7 @@ const TOOLS = [
       min_tokens_per_s: { type: "number", description: "Only models at least this fast (estimated)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "list_known", title: "Models and hardware LocalBit knows",
-    description: "The models or the graphics cards / computers LocalBit has specifications for.",
+    description: "The models or the graphics cards / Macs LocalBit has specifications for - names, ids, sizes, and which the node has measured. Call it first if unsure of a name.",
     inputSchema: { type: "object", required: ["kind"], properties: { kind: { type: "string", enum: ["models", "hardware"] } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "compare", title: "Compare two models or two cards",
@@ -89,9 +89,10 @@ function checkFit(args) {
   }
   const m = findModel(args.model, DATA.models), g = findGpu(args.hardware, DATA.gpus);
   if (!m || !g) {
-    return { error: true, text: (!m ? `LocalBit doesn't know the model "${args.model}" yet - try a size like "13B". ` : "") +
-      (!g ? `LocalBit doesn't know the hardware "${args.hardware}" yet - try a card name or its memory, like "12 GB".` : ""),
-      data: { model_found: !!m, hardware_found: !!g }, log: { model_id: m && m.id, gpu_id: g && g.id, verdict: "unknown" } };
+    const cm = !m ? closest(args.model, DATA.models) : [], cg = !g ? closest(args.hardware, DATA.gpus) : [];
+    return { error: true, text: (!m ? `LocalBit doesn't know the model "${args.model}" yet.${cm.length ? " Closest known: " + cm.join(", ") + "." : ""} Add its size (like "17B") for an estimate, or call list_known for exact names. ` : "") +
+      (!g ? `LocalBit doesn't know the hardware "${args.hardware}" yet.${cg.length ? " Closest known: " + cg.join(", ") + "." : ""} Give its memory (like "12 GB") for an estimate, or call list_known.` : ""),
+      data: { model_found: !!m, hardware_found: !!g, closest_models: cm, closest_hardware: cg }, log: { model_id: m && m.id, gpu_id: g && g.id, verdict: "unknown" } };
   }
   const e = estimate(m, g, args, DATA.quants);
   const meas = measuredFor(e, DATA.measured);
@@ -105,6 +106,9 @@ function checkFit(args) {
     `Speed: ${speed}.`,
     ...tips.map(t => "- " + t),
   ];
+  if (m.asked_as) lines.push(`Note: "${m.asked_as}" is built on the same design as ${m.name}, so it is sized as that.`);
+  if (g.asked_as) lines.push(`Note: "${g.asked_as}" is sized as ${g.name}.`);
+  if (g.vendor === "apple" && g.matched === "generic") lines.push(`Note: a Mac LocalBit doesn't list by name - unified memory, about 75% usable for the model, typical ${g.name.split(" (")[0]} bandwidth.`);
   if (m.matched === "generic" || g.matched === "generic") lines.push("Note: estimated from size alone - give the exact model or card name for a closer answer.");
   if (!m.verified && m.matched === "known") lines.push("Note: this model's specifications are from its published config and not yet re-checked.");
   lines.push(asOfText());
@@ -123,8 +127,15 @@ function suggest(args) {
 }
 
 function listKnown(args) {
-  const rows = args.kind === "hardware" ? DATA.gpus.map(g => g.name) : DATA.models.map(m => m.name);
-  return { text: rows.join("\n"), data: { [args.kind === "hardware" ? "hardware" : "models"]: rows }, log: {} };
+  // (Nov 25) ids and sizes too, so an agent can pass an exact id and pick by size; Macs and memory sizes not listed still work
+  if (args.kind === "hardware") {
+    const rows = DATA.gpus.map(g => ({ id: g.id, name: g.name, memory_gb: g.vram_gb, bandwidth_gbs: g.bandwidth_gbs, measured: DATA.measured.some(r => r.gpu === g.id) }));
+    return { text: `${rows.length} cards and Macs (also accepted: any memory size like "12 GB", or a Mac chip like "M2 Pro 32 GB"):\n` + rows.map(r => `- ${r.name} [${r.id}] ${r.memory_gb} GB${r.measured ? " · measured" : ""}`).join("\n"),
+             data: { hardware: rows }, log: {} };
+  }
+  const rows = DATA.models.map(m => ({ id: m.id, name: m.name, params_b: m.params_b, active_b: m.active_b || m.params_b, measured: DATA.measured.some(r => r.model === m.id) }));
+  return { text: `${rows.length} models (also accepted: any size like "13B model"):\n` + rows.map(r => `- ${r.name} [${r.id}] ${r.params_b}B${r.active_b < r.params_b ? `, ${r.active_b}B active` : ""}${r.measured ? " · measured" : ""}`).join("\n"),
+           data: { models: rows }, log: {} };
 }
 
 // (Nov 25, David: "fun things for the agents" -> compare two + the node log -> "Ok")

@@ -24,7 +24,7 @@ check("answers say when the data is current as of (text and JSON), and when the 
 [st, j] = await rpc({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "check_fit", arguments: { model: "Llama 3.3 70B", hardware: "rtx 3090" } } });
 check("70B on a 3090: doesn't fit, partly on the processor, with ways forward", j.result.structuredContent.verdict === "does_not_fit" && j.result.structuredContent.partly_on_cpu && j.result.structuredContent.suggestions.length > 0, j.result.structuredContent);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "check_fit", arguments: { model: "made-up-model", hardware: "made-up card" } } });
-check("unknown model and card: an error answer that says what to try", j.result.isError === true && /try a size/.test(j.result.content[0].text), j.result);
+check("unknown model and card: an error answer that says what to try", j.result.isError === true && /Add its size/.test(j.result.content[0].text) && /list_known/.test(j.result.content[0].text), j.result);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "suggest_models", arguments: { hardware: "16 GB" } } });
 check("suggest_models for a 16 GB card lists models", j.result.structuredContent.models.length > 3, j.result.structuredContent);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "no_such_tool", arguments: {} } });
@@ -104,4 +104,12 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("node_log lists each measured model once", j4.result.structuredContent.readings.length === new Set(mj.measured.map(r => r.model)).size, j4.result.structuredContent.readings.length);
   const lp = await call("/log"), rs = await call("/log.rss"), cp = await call("/compare?a_model=gemma%204%20e4b&a_hardware=rtx%203090&b_model=qwen3.8%2027b");
   check("pages: /log, /log.rss (valid feed) and /compare", lp.status === 200 && /Node log/.test(await lp.text()) && /<rss version="2.0">/.test(await rs.text()) && /is faster/.test(await cp.text())); }
+{ const r1 = await rpc({ jsonrpc: "2.0", id: 80, method: "tools/call", params: { name: "check_fit", arguments: { model: "deepseek r1 14b", hardware: "rtx 3090" } } });
+  check("a model known by another name says what it was sized as", /built on the same design as Qwen2\.5 14B/.test(r1[1].result.content[0].text), r1[1].result.content[0].text);
+  const r2 = await rpc({ jsonrpc: "2.0", id: 81, method: "tools/call", params: { name: "check_fit", arguments: { model: "llama 4 scout", hardware: "rtx 4090" } } });
+  check("an unknown model gets the closest known names", /Closest known: Llama/.test(r2[1].result.content[0].text) && r2[1].result.structuredContent.closest_models.length > 0, r2[1].result.content[0].text);
+  const r3 = await rpc({ jsonrpc: "2.0", id: 82, method: "tools/call", params: { name: "check_fit", arguments: { model: "mistral 7b", hardware: "macbook air m2 16gb" } } });
+  check("a Mac not listed by name is treated as a Mac (75% of unified memory), not a 16 GB graphics card", /Apple M2 \(16 GB\)/.test(r3[1].result.content[0].text) && /of 12 GB available/.test(r3[1].result.content[0].text), r3[1].result.content[0].text);
+  const r4 = await rpc({ jsonrpc: "2.0", id: 83, method: "tools/call", params: { name: "list_known", arguments: { kind: "hardware" } } });
+  check("list_known gives ids, sizes and what's measured", r4[1].result.structuredContent.hardware.some(h => h.id === "rtx-3090" && h.memory_gb === 24 && h.measured) && /rtx-2080/.test(r4[1].result.content[0].text)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

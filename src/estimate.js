@@ -19,24 +19,46 @@ const squash = s => norm(s).replace(/[\s.\-:]/g, "");
 function bestMatch(q, rows) {
   const nq = norm(q), sq = squash(q);
   if (!sq) return null;
-  let best = null, bestLen = 0;
+  let best = null, bestLen = 0, bestAlias = null;
   for (const r of rows) {
     for (const a of [r.id, r.name, ...(r.aliases || [])]) {
       const sa = squash(a);
       if (!sa) continue;
-      if (sa === sq) return r;                                   // exact
+      if (sa === sq) { r.__alias = a; return r; }                // exact
       // whole-alias containment, longest wins ("rtx 4060 ti 16gb" beats "4060 ti" beats "4060")
       const re = new RegExp("(^|[^a-z0-9])" + norm(a).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "[\\s.\\-:]*") + "($|[^a-z0-9])");
-      if (re.test(nq) && sa.length > bestLen) { best = r; bestLen = sa.length; }
+      if (re.test(nq) && sa.length > bestLen) { best = r; bestLen = sa.length; bestAlias = a; }
     }
   }
+  if (best) best.__alias = bestAlias;
   return best;
 }
+// (Nov 25: "wouldn't want them having a bad experience") an alias that names another model ("deepseek-r1:14b" is built on Qwen2.5 14B)
+// gets a note saying what it was sized as; an unknown name gets the closest known names
+function viaAlias(q, row) {
+  const a = row.__alias || "", sn = squash(row.name), sq = squash(q);
+  return a && a !== row.id && a !== row.name && !sq.includes(sn) && !sn.includes(sq) && /[a-z]{3,}/.test(norm(a).replace(norm(row.name), "")) ? a : null;
+}
+export function closest(q, rows, n = 3) {
+  const words = norm(q).split(" ").filter(w => w.length > 1);
+  if (!words.length) return [];
+  const score = r => { const hay = norm([r.id, r.name, ...(r.aliases || [])].join(" ")); return words.reduce((s, w) => s + (hay.includes(w) ? (/\d/.test(w) ? 2 : 1) : 0), 0); };
+  return rows.map(r => [score(r), r]).filter(x => x[0] > 0).sort((x, y) => y[0] - x[0]).slice(0, n).map(x => x[1].name);
+}
+// Apple chips not in the list by name: unified memory, ~75% usable by the GPU, bandwidth by chip tier
+const APPLE_BW = { m1: [68, 200, 400, 800], m2: [100, 200, 400, 800], m3: [100, 150, 400, 819], m4: [120, 273, 546, 819] };
 
 export function findGpu(q, gpus) {
   const g = bestMatch(q, gpus);
-  if (g) return { ...g, matched: "known" };
-  const m = norm(q).match(/(\d+(?:\.\d+)?)\s*gb/);
+  if (g) { const via = viaAlias(q, g); const { __alias, ...row } = g; return { ...row, matched: "known", ...(via ? { asked_as: q } : {}) }; }
+  const n = norm(q), mm = n.match(/\b(m[1-4])\s*(pro|max|ultra)?\b/), gb = n.match(/(\d+(?:\.\d+)?)\s*gb/);
+  if (mm || /\b(mac|macbook|imac|mac mini|mac studio)\b/.test(n)) {   // a Mac LocalBit doesn't list by name
+    const chip = mm ? mm[1] : "m2", tier = mm && mm[2] ? ["pro", "max", "ultra"].indexOf(mm[2]) + 1 : 0;
+    const mem = gb ? +gb[1] : [16, 24, 64, 128][tier];
+    return { id: `generic-${chip}${tier ? "-" + mm[2] : ""}-${mem}gb`, name: `Apple ${chip.toUpperCase()}${tier ? " " + mm[2][0].toUpperCase() + mm[2].slice(1) : ""} (${mem} GB)${gb ? "" : " - memory not given, assumed"}`,
+             vendor: "apple", vram_gb: mem, usable_fraction: 0.75, bandwidth_gbs: APPLE_BW[chip][tier], matched: "generic" };
+  }
+  const m = n.match(/(\d+(?:\.\d+)?)\s*gb/);
   if (m) {   // "a 12 GB card" - memory known, bandwidth not: assume a mid-range card
     return { id: "generic-" + m[1] + "gb", name: m[1] + " GB graphics card (model not given)", vendor: "nvidia", vram_gb: +m[1], bandwidth_gbs: 450, matched: "generic" };
   }
@@ -45,7 +67,7 @@ export function findGpu(q, gpus) {
 
 export function findModel(q, models) {
   const mdl = bestMatch(q, models);
-  if (mdl) return { ...mdl, matched: "known" };
+  if (mdl) { const via = viaAlias(q, mdl); const { __alias, ...row } = mdl; return { ...row, matched: "known", ...(via ? { asked_as: q } : {}) }; }
   const m = norm(q).match(/(\d+(?:\.\d+)?)\s*b\b/);
   if (m) {   // "some 13B model" - size known, design not: a typical dense model of that size
     const p = +m[1];
