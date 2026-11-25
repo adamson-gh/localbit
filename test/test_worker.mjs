@@ -14,7 +14,7 @@ check("initialize: the version asked for, tools offered, a name", st === 200 && 
 [st] = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" });
 check("a notification gets 202 and no body", st === 202, st);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-check("four tools: three read-only answers and report_issue", j.result.tools.length === 4 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 3 && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
+check("six tools: five read-only answers and report_issue", j.result.tools.length === 6 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 5 && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
 [st, j] = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "check_fit", arguments: { model: "qwen3.8:27b", hardware: "RTX 3090", context: 16384 } } });
 const sc = j.result.structuredContent;
 check("check_fit on the test machine: fits, and the speed is the measured one", sc.verdict === "fits" && sc.basis === "measured" && /4[78]\.\d+ tokens\/s measured/.test(j.result.content[0].text), j.result.content[0].text);
@@ -92,4 +92,16 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const [s2, j2] = await rpc({ jsonrpc: "2.0", id: 61, method: "tools/call", params: { name: "suggest_models", arguments: { hardware: "rtx 3090" } } });
   const q = j2.result.structuredContent.models.find(x => /Qwen3\.8/.test(x.model));
   check("suggest_models uses a measured speed where the node has one", q && q.basis === "measured" && /tokens\/s measured/.test(j2.result.content[0].text), q); }
+{ const [s, j] = await rpc({ jsonrpc: "2.0", id: 70, method: "tools/call", params: { name: "compare", arguments: { a_model: "gemma 4 e4b", a_hardware: "rtx 3090", b_model: "qwen3.8 27b" } } });
+  const tx = j.result.content[0].text;
+  check("compare: two models on one card - fit, speed, room, quality/energy note, as-of", !j.result.isError && /Gemma 4 E4B vs Qwen3\.8 27B on/.test(tx) && /Speed: Gemma 4 E4B is faster/.test(tx) && /Room left:/.test(tx) && /Data as of/.test(tx), tx);
+  const [s2, j2] = await rpc({ jsonrpc: "2.0", id: 71, method: "tools/call", params: { name: "compare", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060", b_hardware: "rtx 4090" } } });
+  check("compare: one model on two cards", !j2.result.isError && /RTX 4060 vs NVIDIA GeForce RTX 4090|4060 vs .*4090/.test(j2.result.content[0].text), j2.result.content[0].text);
+  const [s3, j3] = await rpc({ jsonrpc: "2.0", id: 72, method: "tools/call", params: { name: "compare", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060" } } });
+  check("compare with nothing to compare against says so", j3.result.isError && /second model/.test(j3.result.content[0].text));
+  const [s4, j4] = await rpc({ jsonrpc: "2.0", id: 73, method: "tools/call", params: { name: "node_log", arguments: {} } });
+  const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
+  check("node_log lists each measured model once", j4.result.structuredContent.readings.length === new Set(mj.measured.map(r => r.model)).size, j4.result.structuredContent.readings.length);
+  const lp = await call("/log"), rs = await call("/log.rss"), cp = await call("/compare?a_model=gemma%204%20e4b&a_hardware=rtx%203090&b_model=qwen3.8%2027b");
+  check("pages: /log, /log.rss (valid feed) and /compare", lp.status === 200 && /Node log/.test(await lp.text()) && /<rss version="2.0">/.test(await rs.text()) && /is faster/.test(await cp.text())); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

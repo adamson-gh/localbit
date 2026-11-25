@@ -45,6 +45,20 @@ const TOOLS = [
     description: "The models or the graphics cards / computers LocalBit has specifications for.",
     inputSchema: { type: "object", required: ["kind"], properties: { kind: { type: "string", enum: ["models", "hardware"] } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
+  { name: "compare", title: "Compare two models or two cards",
+    description: "Head to head: two models on the same hardware, or one model on two pieces of hardware. Says which fits, which is faster, " +
+      "which leaves more memory free, and - where LocalBit's node measured them - which scores higher on its quality check and uses less energy.",
+    inputSchema: { type: "object", required: ["a_model", "a_hardware"], properties: {
+      a_model: { type: "string", description: "First model, e.g. 'gemma 4 e4b'." },
+      a_hardware: { type: "string", description: "First hardware, e.g. 'rtx 3090'." },
+      b_model: { type: "string", description: "Second model (leave out to compare one model on two cards)." },
+      b_hardware: { type: "string", description: "Second hardware (leave out to compare two models on the same card)." },
+      context: { type: "integer", description: "Context length in tokens (default 8192)." } } },
+    annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
+  { name: "node_log", title: "Latest readings from LocalBit's test node",
+    description: "What LocalBit's RTX 3090 node tested most recently: each model's measured speed, quality score, memory and energy, newest first.",
+    inputSchema: { type: "object", properties: { limit: { type: "integer", description: "How many models (default 10)." } } },
+    annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "report_issue", title: "Report a wrong or missing answer",
     description: "Tell LocalBit an answer was wrong (it didn't fit, the speed was different, a spec is off) or a model or card is missing. " +
       "Real results help most: the tokens/s and memory actually seen, and the runtime. Don't include names, emails or other personal details.",
@@ -108,7 +122,51 @@ function listKnown(args) {
   return { text: rows.join("\n"), data: { [args.kind === "hardware" ? "hardware" : "models"]: rows }, log: {} };
 }
 
-const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown };
+// (Nov 25, David: "fun things for the agents" -> compare two + the node log -> "Ok")
+function compare(args) {
+  const A = { model: args.a_model, hardware: args.a_hardware, context: args.context, quant: args.quant };
+  const B = { model: args.b_model || args.a_model, hardware: args.b_hardware || args.a_hardware, context: args.context, quant: args.quant };
+  if (!args.b_model && !args.b_hardware) return { error: true, text: "compare needs a second model (b_model) or a second card (b_hardware).", data: { missing: ["b_model or b_hardware"] }, log: { verdict: "missing_args" } };
+  const a = checkFit(A), b = checkFit(B);
+  if (a.error || b.error) return { error: true, text: [a.error && "First: " + a.text, b.error && "Second: " + b.text].filter(Boolean).join("\n"), data: {}, log: { verdict: "unknown" } };
+  const da = a.data, db = b.data, label = d => args.b_model ? d.model : d.hardware;
+  const sp = d => d.measured ? d.measured.gen_tokens_per_s : d.gen_tokens_per_s;
+  const node = d => (measuredFile.measured || []).find(r => r.model === d.model_id && r.gpu === d.hardware_id && r.context === 16384) ||
+                    (measuredFile.measured || []).find(r => r.model === d.model_id && r.gpu === d.hardware_id);
+  const na = node(da), nb = node(db);
+  const fits = d => d.verdict === "fits" ? "fits" : d.verdict === "tight" ? "just fits" : "doesn't fit";
+  const lines = [`${label(da)} vs ${label(db)}${args.b_model ? " on " + da.hardware : ", running " + da.model} (${da.quant}, ${(+da.context).toLocaleString("en-US")}-token context):`];
+  lines.push(`- Fit: ${label(da)} ${fits(da)} (${da.memory_gb.total} of ${da.memory_gb.available} GB); ${label(db)} ${fits(db)} (${db.memory_gb.total} of ${db.memory_gb.available} GB).`);
+  const ra = sp(da), rb = sp(db), fast = ra >= rb ? [da, ra, rb] : [db, rb, ra];
+  const r0 = v => Math.round(v * 10) / 10 >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+  lines.push(`- Speed: ${label(fast[0])} is faster - ${r0(fast[1])} vs ${r0(fast[2])} tokens/s${Math.min(ra, rb) > 0 ? ` (${(Math.max(ra, rb) / Math.min(ra, rb)).toFixed(1)}x)` : ""}${da.measured || db.measured ? "" : ", both estimated"}.`);
+  const fa = da.memory_gb.available - da.memory_gb.total, fb = db.memory_gb.available - db.memory_gb.total;
+  lines.push(`- Room left: ${label(fa >= fb ? da : db)} leaves more free (${Math.max(fa, fb).toFixed(1)} GB vs ${Math.min(fa, fb).toFixed(1)} GB).`);
+  if (na && nb && na.quality_pct != null && nb.quality_pct != null)
+    lines.push(`- Quality (node check): ${label(na.quality_pct >= nb.quality_pct ? da : db)} scores higher - ${Math.max(na.quality_pct, nb.quality_pct)}% vs ${Math.min(na.quality_pct, nb.quality_pct)}% right.`);
+  if (na && nb && na.power_w && nb.power_w) { const wa = na.power_w * 400 / na.gen_tps / 3600, wb = nb.power_w * 400 / nb.gen_tps / 3600;
+    lines.push(`- Energy (node): ${label(wa <= wb ? da : db)} uses less - ${Math.min(wa, wb).toFixed(2)} vs ${Math.max(wa, wb).toFixed(2)} Wh per 300-word answer.`); }
+  if (!(na && nb)) lines.push("- Quality and energy: only shown when LocalBit's node has measured both.");
+  lines.push(asOfText());
+  return { text: lines.join("\n"), data: { a: da, b: db, a_node: na || null, b_node: nb || null, data_as_of: AS_OF },
+           log: { model_id: da.model_id, gpu_id: da.hardware_id, verdict: "compare" } };
+}
+function nodeEntries(limit = 10) {
+  const by = {};
+  for (const r of measuredFile.measured || []) { const k = r.model; if (!by[k] || r.context === 16384) by[k] = r; }
+  return Object.values(by).sort((x, y) => String(y.quality_date || y.date).localeCompare(String(x.quality_date || x.date)) || String(y.date).localeCompare(String(x.date)))
+    .slice(0, Math.max(1, Math.min(50, +limit || 10)))
+    .map(r => ({ model: (DATA.models.find(m => m.id === r.model) || {}).name || r.model, model_id: r.model, gpu: "RTX 3090", date: r.date,
+                 gen_tps: Math.round(r.gen_tps), quality_pct: r.quality_pct ?? null, memory_gb: Math.round(r.gpu_mem_peak_gib * 10) / 10, read_4k_s: r.prompt_tps_4k ? +(4000 / r.prompt_tps_4k).toFixed(1) : null,
+                 wh_per_answer: r.power_w ? +(r.power_w * 400 / r.gen_tps / 3600).toFixed(2) : null }));
+}
+function nodeLog(args) {
+  const e = nodeEntries(args.limit);
+  const text = e.length ? `Latest readings from LocalBit's RTX 3090 node (newest first):\n` + e.map(x => `- ${x.date}: ${x.model} - ${x.gen_tps} tokens/s` +
+    (x.quality_pct != null ? `, ${x.quality_pct}% quality` : "") + `, ${x.memory_gb} GB, ${x.read_4k_s ?? "-"} s to read 3,000 words, ${x.wh_per_answer ?? "-"} Wh per answer`).join("\n") : "No readings yet.";
+  return { text, data: { readings: e, data_as_of: AS_OF }, log: { verdict: "log" } };
+}
+const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown, compare, node_log: nodeLog };
 
 // ---------- logging (no IPs, nothing personal) ----------
 function agentOf(ua) {
@@ -199,7 +257,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{border-bottom:1px solid var(--line);background:var(--bg)}header .in,main,footer .in{max-width:880px;margin:0 auto;padding:0 20px}
 header .in{display:flex;align-items:center;justify-content:space-between;height:58px;gap:16px}
 .logo{font-weight:750;font-size:1.15rem;letter-spacing:-.01em;color:var(--ink)}.logo b{color:var(--accent)}
-nav a{color:var(--mute);margin-left:18px;font-size:.95rem}nav a:hover{color:var(--ink)}
+nav a{color:var(--mute);margin-left:18px;font-size:.95rem;white-space:nowrap}@media (max-width:620px){header .in{height:auto;padding-top:10px;padding-bottom:10px;flex-wrap:wrap;gap:4px 12px}nav a{margin:0 12px 0 0;font-size:.88rem}}nav a:hover{color:var(--ink)}
 main{padding:34px 20px 20px}h1{font-size:1.9rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}h2{font-size:1.15rem;margin:34px 0 10px}
 .lede{color:var(--mute);font-size:1.08rem;max-width:640px;margin:0 0 24px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:16px 0}
@@ -251,7 +309,7 @@ function page(title, body, origin, desc) {
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc || "Will this AI model run on my hardware? Memory needed and speed, estimated or measured.")}">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232457d6'/%3E%3Cpath d='M9 8v16h14' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <meta name="color-scheme" content="light"><style>:root{color-scheme:light}${CSS}</style></head><body>
-<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
+<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/log">Node log</a><a href="${origin}/compare">Compare</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
 <footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="https://github.com/adamson-gh/localbit">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
 </body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -271,7 +329,7 @@ function home(origin) {
 <div class="card"><h3>Open data</h3><p>Readings and tables under CC BY 4.0. Scripts on <a href="https://github.com/adamson-gh/localbit">GitHub</a>.</p></div></div>
 <h2 id="agents">For AI agents</h2>
 <div class="card"><p style="margin-top:0"><b>MCP server</b> (Streamable HTTP, no key): <code>${origin}/mcp</code><br><span class="small">Listed in the MCP Registry as <code>io.github.adamson-gh/localbit</code></span></p>
-<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>list_known</code> · <code>report_issue</code></p>
+<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare</code> · <code>node_log</code> · <code>list_known</code> · <code>report_issue</code></p>
 <p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a></p></div>
 <h2>What the node logs</h2><p class="small">The tool called, the model and hardware asked about, and the calling app's self-reported name. No IP addresses, accounts or personal data. <a href="${origin}/about">Who runs it, privacy, data license.</a></p>`, origin,
   "Will an AI model run on your GPU or Mac? Memory needed and tokens per second - estimated, and measured on a real RTX 3090.");
@@ -362,6 +420,29 @@ ${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "
 <h2>Choosing</h2>
 <p>Quality against speed. Bigger models score higher and run slower. Pick the highest Quality that is still fast enough for you; for long documents, check Reading.</p>`;
 }
+function comparePage(sp, origin) {
+  const out = compare(sp);
+  const box = `<form class="ask" method="get" action="${origin}/compare"><input name="a_model" placeholder="Model" value="${esc(sp.a_model || "")}"><input name="a_hardware" placeholder="Card" value="${esc(sp.a_hardware || "")}">
+<span class="small" style="align-self:center;flex-basis:100%">versus</span><input name="b_model" placeholder="Other model (or leave)" value="${esc(sp.b_model || "")}"><input name="b_hardware" placeholder="Other card (or leave)" value="${esc(sp.b_hardware || "")}"><button>Compare</button></form>`;
+  if (out.error) return page("Compare - LocalBit", `<h1>Compare</h1><p class="lede">Two models on one card, or one model on two cards.</p><div class="card">${box}${sp.a_model ? `<p class="small">${esc(out.text)}</p>` : ""}</div>`, origin);
+  const lines = out.text.split("\n");
+  return page(`${lines[0].replace(/:$/, "")} - LocalBit`, `<h1>${esc(lines[0].replace(/ \(.*$/, ""))}</h1><p class="small">${esc((lines[0].match(/\((.*)\)/) || [])[1] || "")}</p>
+<div class="card"><ul class="tips" style="margin:0">${lines.slice(1, -1).map(l => `<li>${esc(l.replace(/^- /, ""))}</li>`).join("")}</ul></div>
+<div class="card">${box}</div>`, origin);
+}
+function logPage(origin) {
+  const e = nodeEntries(50);
+  return page("Node log - LocalBit", `<h1>Node log</h1><p class="lede" style="margin-bottom:6px">Readings from the field, newest first.</p>
+<p class="small" style="margin:0 0 18px">RTX 3090 node · runs nightly · <a href="${origin}/log.rss">RSS</a> · agents: <code>node_log</code></p>
+${e.length ? `<div class="models">${e.map(x => `<section class="model"><h3><a href="${origin}/measured#${esc(x.model_id)}">${esc(x.model)}</a></h3><span class="mmeta">${esc(x.date)}</span>
+<div class="small" style="margin-top:4px">${x.gen_tps} tokens/s${x.quality_pct != null ? ` · ${x.quality_pct}% quality` : ""} · ${x.memory_gb} GB · ${x.read_4k_s ?? "-"} seconds to read 3,000 words · ${x.wh_per_answer ?? "-"} Wh per answer</div></section>`).join("")}</div>` : "<p>No readings yet.</p>"}`, origin);
+}
+function logRss(origin) {
+  const e = nodeEntries(30);
+  const items = e.map(x => `<item><title>${esc(x.model)} on an RTX 3090: ${x.gen_tps} tokens/s${x.quality_pct != null ? `, ${x.quality_pct}% quality` : ""}</title><link>${esc(origin)}/measured#${esc(x.model_id)}</link><guid isPermaLink="false">${esc(x.model_id)}-${esc(x.date)}</guid><pubDate>${new Date(x.date + "T06:00:00Z").toUTCString()}</pubDate><description>${esc(`${x.memory_gb} GB on the card; ${x.read_4k_s ?? "-"} s to read 3,000 words; ${x.wh_per_answer ?? "-"} Wh per answer.`)}</description></item>`).join("");
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>LocalBit node log</title><link>${esc(origin)}/log</link><description>New readings from LocalBit's RTX 3090 test node.</description>${items}</channel></rss>`,
+    { headers: { "content-type": "application/rss+xml; charset=utf-8" } });
+}
 function measuredPage(origin) {
   const rows = measuredFile.measured || [];
   const byModel = {};
@@ -400,12 +481,12 @@ ${reportForm(origin, m, g)}`, origin, out.text.split("\n")[0]);
 }
 function llmsTxt(origin) {
   return `# LocalBit\n\n> Will an AI model run on this hardware? Memory needed (weights + context cache) and estimated or measured generation speed for local models on graphics cards and Apple computers.\n\n` +
-    `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
-    `- JSON API: ${origin}/api/check?model=...&hardware=...&context=...&quant=... ; ${origin}/api/suggest?hardware=... ; ${origin}/api/models ; ${origin}/api/hardware ; ${origin}/api/measured ; POST ${origin}/api/report (JSON)\n\n` +
+    `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), compare(a_model, a_hardware, b_model?, b_hardware?, context?), node_log(limit?), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
+    `- JSON API: ${origin}/api/check?model=...&hardware=...&context=...&quant=... ; ${origin}/api/suggest?hardware=... ; ${origin}/api/models ; ${origin}/api/hardware ; ${origin}/api/measured ; ${origin}/api/compare?a_model=...&a_hardware=...&b_model=... ; ${origin}/api/log ; ${origin}/log.rss ; POST ${origin}/api/report (JSON)\n\n` +
     `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
 }
 function sitemap(origin) {
-  const urls = [origin + "/", origin + "/measured", origin + "/about"];
+  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/about"];
   for (const m of DATA.models) for (const g of DATA.gpus) urls.push(`${origin}/run/${m.id}/on/${g.id}`);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc>${AS_OF.specs ? `<lastmod>${[AS_OF.specs, AS_OF.measured].filter(Boolean).sort().pop()}</lastmod>` : ""}</url>`).join("\n")}\n</urlset>`,
     { headers: { "content-type": "application/xml" } });
@@ -462,6 +543,11 @@ export default {
     if (path === "/api/hardware") return json({ hardware: DATA.gpus.map(({ id, name, vram_gb, bandwidth_gbs }) => ({ id, name, vram_gb, bandwidth_gbs })) });
     if (path === "/api/measured") return json({ license: "CC BY 4.0 - credit LocalBit", data_as_of: AS_OF, measured: DATA.measured });
     if (path === "/check") { const o = checkFit(sp); logCall(env, ctx, { kind: "check_page", ua, tool: "check_fit", model_q: sp.model, hw_q: sp.hardware, ...o.log }); return checkPage(sp, origin); }
+    if (path === "/compare") { const o = compare(sp); logCall(env, ctx, { kind: "compare_page", ua, tool: "compare", model_q: sp.a_model, hw_q: sp.a_hardware, ...o.log }); return comparePage(sp, origin); }
+    if (path === "/api/compare") { const o = compare(sp); logCall(env, ctx, { kind: "api", ua, tool: "compare", model_q: sp.a_model, hw_q: sp.a_hardware, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
+    if (path === "/log") { logCall(env, ctx, { kind: "log", ua }); return logPage(origin); }
+    if (path === "/log.rss") { logCall(env, ctx, { kind: "log_rss", ua }); return logRss(origin); }
+    if (path === "/api/log") { const o = nodeLog(sp); return json({ answer: o.text, ...o.data }); }
     if (path === "/measured") { logCall(env, ctx, { kind: "measured", ua }); return measuredPage(origin); }
     if (path === "/about") { logCall(env, ctx, { kind: "about", ua }); return about(origin); }
     if (path === "/llms.txt") { logCall(env, ctx, { kind: "llms_txt", ua }); return new Response(llmsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8" } }); }
