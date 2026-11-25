@@ -87,4 +87,9 @@ check("the log holds what was asked and the agent's name - and no address", flat
 { const st = await (await call("/stats", { headers: { authorization: "Bearer made-up-key" } })).json();
   const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
   check("stats compare the estimate with every measurement (drift %)", Array.isArray(st.estimate_drift) && st.estimate_drift.length === mj.measured.length && st.estimate_drift.every(d => typeof d.off_pct === "number"), st.estimate_drift); }
+{ const [s1, j1] = await rpc({ jsonrpc: "2.0", id: 60, method: "tools/call", params: { name: "check_fit", arguments: { model: "qwen3.8-27b" } } });
+  check("check_fit with no hardware says what's missing (not 'undefined')", j1.result.isError && /hardware missing/.test(j1.result.content[0].text) && !/undefined/.test(j1.result.content[0].text), j1.result.content[0].text);
+  const [s2, j2] = await rpc({ jsonrpc: "2.0", id: 61, method: "tools/call", params: { name: "suggest_models", arguments: { hardware: "rtx 3090" } } });
+  const q = j2.result.structuredContent.models.find(x => /Qwen3\.8/.test(x.model));
+  check("suggest_models uses a measured speed where the node has one", q && q.basis === "measured" && /tokens\/s measured/.test(j2.result.content[0].text), q); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

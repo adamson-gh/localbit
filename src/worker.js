@@ -62,6 +62,12 @@ const TOOLS = [
 
 // ---------- answers ----------
 function checkFit(args) {
+  // (Nov 25 check: callers sent no model or hardware and got 'doesn't know the model "undefined"') say what's missing instead
+  if (!String(args.model || "").trim() || !String(args.hardware || "").trim()) {
+    const miss = [!String(args.model || "").trim() && "model", !String(args.hardware || "").trim() && "hardware"].filter(Boolean);
+    return { error: true, text: `check_fit needs both a model and hardware - ${miss.join(" and ")} missing. Example: model "llama 3.1 8b", hardware "rtx 4060" (or memory, like "12 GB"). list_known shows what LocalBit knows.`,
+             data: { missing: miss }, log: { verdict: "missing_args" } };
+  }
   const m = findModel(args.model, DATA.models), g = findGpu(args.hardware, DATA.gpus);
   if (!m || !g) {
     return { error: true, text: (!m ? `LocalBit doesn't know the model "${args.model}" yet - try a size like "13B". ` : "") +
@@ -89,11 +95,12 @@ function checkFit(args) {
 
 function suggest(args) {
   const g = findGpu(args.hardware, DATA.gpus);
+  if (!String(args.hardware || "").trim()) return { error: true, text: `suggest_models needs hardware - a card name like "rtx 4060" or memory like "16 GB".`, data: { missing: ["hardware"] }, log: { verdict: "missing_args" } };
   if (!g) return { error: true, text: `LocalBit doesn't know the hardware "${args.hardware}" yet - try a card name or its memory, like "12 GB".`, data: {}, log: { verdict: "unknown" } };
   const list = suggestModels(g, args, DATA);
-  const text = list.length ? `Largest known models that fit on ${g.name} (${(+args.context || 8192).toLocaleString("en-US")}-token context, estimated):\n` +
-    list.map(x => `- ${x.model} (${x.quant}): ${x.memory_gb} GB, ~${x.gen_tokens_per_s} tokens/s`).join("\n") : `None of the known models fit on ${g.name} at that context.`;
-  return { text: text + "\n" + asOfText(), data: { hardware: g.name, models: list, basis: "estimated", data_as_of: AS_OF }, log: { gpu_id: g.id, verdict: list.length ? "listed" : "none" } };
+  const text = list.length ? `Largest known models that fit on ${g.name} (${(+args.context || 8192).toLocaleString("en-US")}-token context; speeds estimated unless marked measured):\n` +
+    list.map(x => `- ${x.model} (${x.quant}): ${x.memory_gb} GB, ${x.basis === "measured" ? x.gen_tokens_per_s + " tokens/s measured" : "~" + x.gen_tokens_per_s + " tokens/s"}`).join("\n") : `None of the known models fit on ${g.name} at that context.`;
+  return { text: text + "\n" + asOfText(), data: { hardware: g.name, models: list, basis: list.some(x => x.basis === "measured") ? "mixed" : "estimated", data_as_of: AS_OF }, log: { gpu_id: g.id, verdict: list.length ? "listed" : "none" } };
 }
 
 function listKnown(args) {

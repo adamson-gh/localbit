@@ -136,5 +136,7 @@ export function suggestModels(gpu, opts, data) {
   return data.models.map(m => estimate({ ...m, matched: "known" }, gpu, { context: ctx }, data.quants))
     .filter(e => e.verdict === "fits" && e.gen_tokens_per_s >= minTps)
     .sort((a, b) => b.memory_gb.weights - a.memory_gb.weights).slice(0, 10)
-    .map(e => ({ model: e.model, quant: e.quant, memory_gb: e.memory_gb.total, gen_tokens_per_s: e.gen_tokens_per_s }));
+    .map(e => { const ms = measuredFor(e, data.measured || []);   // (Nov 25 check) a measured speed wins over the estimate
+      return { model: e.model, quant: e.quant, memory_gb: e.memory_gb.total, gen_tokens_per_s: ms ? ms.gen_tokens_per_s : e.gen_tokens_per_s,
+               basis: ms ? "measured" : "estimated", ...(ms && ms.date ? { measured_date: ms.date } : {}) }; });
 }
