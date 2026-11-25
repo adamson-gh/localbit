@@ -212,16 +212,18 @@ ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
 code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
 table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
-.scroll{overflow-x:auto}.models{display:grid;gap:0;border-top:1px solid var(--line)}.model{padding:22px 0 18px;border-bottom:1px solid var(--line)}
-.model h3{margin:0;font-size:1.25rem;letter-spacing:-.01em}.model h3 a{color:var(--ink)}.mmeta{color:var(--mute);font-size:.85rem;margin:2px 0 12px}
-.mr{display:grid;grid-template-columns:190px 110px 1fr;grid-template-areas:"k n b" "k n x";column-gap:18px;align-items:center;padding:7px 0}
-.mk{grid-area:k;display:flex;align-items:center;gap:8px;font-weight:600;font-size:.92rem}.mk .ic{width:15px;height:15px;color:var(--mute);flex:none}
-.mk em{font-style:normal;font-weight:400;color:var(--mute);font-size:.75rem;margin-left:2px}
-.mn{grid-area:n;font-variant-numeric:tabular-nums;font-size:1.3rem;font-weight:700;text-align:right;white-space:nowrap}.mn small{font-size:.75rem;font-weight:500;color:var(--mute);margin-left:4px}
-.mb{grid-area:b;display:block;height:6px;background:var(--line);border-radius:3px;overflow:hidden}.mb i{display:block;height:100%;background:var(--ink);opacity:.75}
-.mx{grid-area:x;color:var(--mute);font-size:.82rem;margin-top:3px}
-.defs dt{font-weight:650;margin-top:12px}.defs dd{margin:2px 0 0;color:var(--mute);max-width:680px}
-@media (max-width:620px){.mr{grid-template-columns:1fr auto;grid-template-areas:"k n" "b b" "x x"}.mb{margin-top:6px}}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
+.scroll{overflow-x:auto}.jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 6px;font-size:.92rem}.jump a{margin-left:0;color:var(--mute);border-bottom:1px dotted var(--line)}.jump a:hover{color:var(--ink);text-decoration:none}
+.models{border-top:1px solid var(--line)}.model{padding:12px 0 10px;border-bottom:1px solid var(--line);scroll-margin-top:12px}
+.model h3{display:inline;margin:0;font-size:1.05rem}.model h3 a{color:var(--ink)}.mmeta{display:inline;color:var(--mute);font-size:.8rem;margin-left:8px}
+.mr{display:grid;grid-template-columns:190px 92px minmax(80px,1fr) 210px;align-items:center;column-gap:14px;padding:2px 0;font-size:.88rem}
+.mr:first-of-type{margin-top:6px}.mk{display:flex;align-items:center;gap:7px;font-weight:600}.mk .ic{width:13px;height:13px;color:var(--mute);flex:none}
+.mk em{font-style:normal;font-weight:400;color:var(--mute);font-size:.7rem;white-space:nowrap}
+.mn{font-variant-numeric:tabular-nums;font-size:1rem;font-weight:700;text-align:right;white-space:nowrap}.mn small{font-size:.72rem;font-weight:500;color:var(--mute);margin-left:3px}
+.mb{display:block;height:8px;background:#efefeb;border-radius:4px;overflow:hidden}.mb i{display:block;height:100%;background:#c9cbd1}
+.mb.cy i{background:#f1dd8c}.mb.co i{background:#f5c39b}.mr.cy .ic{color:#c9a227}.mr.co .ic{color:#d9864a}
+.mx{color:var(--mute);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-color-scheme:dark){.mb{background:#26282c}.mb i{background:#5a5e66}.mb.cy i{background:#7a6a2e}.mb.co i{background:#7d5233}}
+@media (max-width:640px){.mr{grid-template-columns:1fr auto;row-gap:2px}.mb{grid-column:1 / -1}.mx{grid-column:1 / -1;margin-bottom:4px}.mmeta{display:block;margin:0}}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
 .qrow{display:grid;grid-template-columns:26px 92px 1fr 104px;grid-template-areas:"i l b v" ". . x x";align-items:center;gap:2px 10px;margin:6px 0}
 .qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.ql{grid-area:l;font-size:.88rem;font-weight:600}.qrow .cb.qsb{background:#d08a00}.qrow .cb.qmb{background:var(--accent)}.qrow .cb.ql2b{background:#8a63d2}.qrow .cb.qrb{background:#13897a}.qrow .cb.qpb{background:#5c8a2e}.ql2{background:#efe8fb;color:#6b47b8}.qr{background:#e3f4f1;color:#0f7468}.qp{background:#ebf3e2;color:#4a7424}@media (prefers-color-scheme:dark){.ql2{background:#2a2140;color:#b49cf0}.qr{background:#13302c;color:#6fd3c4}.qp{background:#1f2b14;color:#a3d277}}@media (max-width:560px){.qrow{grid-template-columns:26px 1fr 96px;grid-template-areas:"i l v" "b b b" "x x x"}}
 .qv{grid-area:v;font-weight:700;font-size:.9rem;text-align:right;white-space:nowrap}.qx{grid-area:x;color:var(--mute);font-size:.8rem}
@@ -326,20 +328,22 @@ function charts(ids, byModel, name, origin) {
              read: r.prompt_tps_4k ? 4000 / r.prompt_tps_4k : null, size: +r.gpu_mem_peak_gib || 0,
              wh: r.power_w && r.gen_tps ? r.power_w * 400 / r.gen_tps / 3600 : null }; });
   const mx = k => Math.max(...vals.map(v => v[k] || 0), 1e-9);
-  const bar = (v, of) => `<span class="mb"><i style="width:${Math.max(1.5, Math.min(100, 100 * v / of)).toFixed(1)}%"></i></span>`;
-  const row = (icon, label, dir, num, unit, b, note) => `<div class="mr"><div class="mk">${icon}<span>${label}</span>${dir ? `<em>${dir}</em>` : ""}</div>
+  // (Nov 25, David: "speed = yellow, energy = orange, very light ... more compact") one line per measure; the sentence is the tooltip
+  const bar = (v, of, c = "") => `<span class="mb ${c}"><i style="width:${Math.max(1.5, Math.min(100, 100 * v / of)).toFixed(1)}%"></i></span>`;
+  const row = (icon, label, dir, num, unit, b, note, c = "") => `<div class="mr ${c}" title="${esc(note)}"><div class="mk">${icon}<span>${label}</span>${dir ? `<em>${dir}</em>` : ""}</div>
 <div class="mn">${num}<small>${unit}</small></div>${b}<div class="mx">${note}</div></div>`;
   const sec = v => v < 10 ? v.toFixed(1) : String(Math.round(v));
   const cards = vals.map(v => { const m = DATA.models.find(x => x.id === v.id) || {};
     const size = m.params_b ? `${m.params_b}B parameters` + (m.active_b && m.active_b < m.params_b ? `, ${m.active_b}B active` : "") : "";
-    return `<section class="model"><h3><a href="${origin}/run/${esc(v.id)}/on/rtx-3090">${esc(name(v.id))}</a></h3><div class="mmeta">${esc(size)} · ${esc(v.r.quant || "")} · ${esc(v.r.ollama_tag || "")} · ${esc(v.r.date || "")}</div>
-${row(ICON.speed, "Speed", "", v.speed.toFixed(0), "tokens/s", bar(v.speed, mx("speed")), `A 300-word answer takes about ${Math.max(1, Math.round(400 / v.speed))} s to write out.`)}
-${v.keep != null ? row(ICON.long, "Long chats", "", v.keep, "% kept", bar(v.keep, 100), `Speed with a long conversation (32K) vs a short one (4K): ${v.s32.toFixed(0)} vs ${v.s4.toFixed(0)} tokens/s.`) : ""}
-${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "s", bar(v.read, mx("read")), `Wait before it starts answering a 3,000-word document.`) : ""}
-${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24), `${(24 - v.size).toFixed(1)} GB of the card left for longer chats or another model.`)}
-${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh")), `Electricity for a 300-word answer (card draws ${Math.round(v.r.power_w)} W while writing).`) : ""}
+    return `<section class="model" id="${esc(v.id)}"><h3><a href="${origin}/run/${esc(v.id)}/on/rtx-3090">${esc(name(v.id))}</a></h3><div class="mmeta">${esc(size)} · ${esc(v.r.quant || "")} · ${esc(v.r.ollama_tag || "")} · ${esc(v.r.date || "")}</div>
+${row(ICON.speed, "Speed", "", v.speed.toFixed(0), "tokens/s", bar(v.speed, mx("speed"), "cy"), `300 words in about ${Math.max(1, Math.round(400 / v.speed))} s`, "cy")}
+${v.keep != null ? row(ICON.long, "Long chats", "", v.keep, "% kept", bar(v.keep, 100), `${v.s32.toFixed(0)} tokens/s at 32K vs ${v.s4.toFixed(0)} at 4K`) : ""}
+${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "s", bar(v.read, mx("read")), `wait for a 3,000-word document`) : ""}
+${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24), `${(24 - v.size).toFixed(1)} GB free`)}
+${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh"), "co"), `per 300-word answer · ${Math.round(v.r.power_w)} W`, "co") : ""}
 </section>`; }).join("");
-  return `<div class="models">${cards}</div>
+  const nav = `<nav class="jump" aria-label="Models measured">${vals.map(v => `<a href="#${esc(v.id)}">${esc(name(v.id))}</a>`).join("")}</nav>`;
+  return `${nav}<div class="models">${cards}</div>
 <h2>Reading these</h2>
 <dl class="defs"><dt>Speed</dt><dd>How fast words come out once it has started. People read about 8 tokens a second, so anything well above that keeps ahead of you.</dd>
 <dt>Long chats</dt><dd>Models carry the whole conversation along; the longer it gets, the more there is to look through for each new word. This is how much of its short-chat speed it keeps when the conversation reaches about 24,000 words (32K tokens).</dd>
@@ -363,12 +367,12 @@ function measuredPage(origin) {
       `<td>${f(at(rs, 16384, "prompt_tps_4k"))}</td><td>${f(mid.gpu_mem_peak_gib, 1)}</td><td>${f(mid.power_w)}</td><td>${f(mid.tokens_per_joule, 2)}</td><td>${esc(mid.date || "")}</td></tr>`; }).join("");
   const any = rows[0] || {};
   return page("Measured: local AI models on an RTX 3090 - LocalBit", `<h1>Measured on an RTX 3090</h1>
-<p class="lede">Real runs on LocalBit's own test machine - not estimates. Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
+<p class="lede">Real runs on LocalBit's own RTX 3090, not estimates. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
 ${ids.length ? charts(ids, byModel, name, origin) : ""}
 ${ids.length ? `<details class="card"><summary>All the numbers as a table</summary><div class="scroll"><table class="meas">
 <thead><tr><th rowspan="2">Model</th><th colspan="3" style="text-align:center">Tokens/s by context</th><th rowspan="2">Prompt<br>tokens/s</th><th rowspan="2">Memory<br>GB</th><th rowspan="2">Power<br>W</th><th rowspan="2">Tokens<br>per joule</th><th rowspan="2">Date</th></tr><tr><th>4K</th><th>16K</th><th>32K</th></tr></thead>
 <tbody>${body}</tbody></table><div class="meas-note">Prompt = reading a 4,000-token prompt at 16K context. Memory = the whole card's peak at 16K. Power = the card's average while generating.</div></div></details>` : "<p>No results yet.</p>"}
-<h2>The machine</h2><p>NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
+<h2>How it's measured</h2><p>Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
 <h2>Use the data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
 }
 function pairPage(mid, gid, origin) {
