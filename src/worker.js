@@ -212,12 +212,21 @@ ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
 code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
 table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
-.scroll{overflow-x:auto}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
+.scroll{overflow-x:auto}.models{display:grid;gap:0;border-top:1px solid var(--line)}.model{padding:22px 0 18px;border-bottom:1px solid var(--line)}
+.model h3{margin:0;font-size:1.25rem;letter-spacing:-.01em}.model h3 a{color:var(--ink)}.mmeta{color:var(--mute);font-size:.85rem;margin:2px 0 12px}
+.mr{display:grid;grid-template-columns:190px 110px 1fr;grid-template-areas:"k n b" "k n x";column-gap:18px;align-items:center;padding:7px 0}
+.mk{grid-area:k;display:flex;align-items:center;gap:8px;font-weight:600;font-size:.92rem}.mk .ic{width:15px;height:15px;color:var(--mute);flex:none}
+.mk em{font-style:normal;font-weight:400;color:var(--mute);font-size:.75rem;margin-left:2px}
+.mn{grid-area:n;font-variant-numeric:tabular-nums;font-size:1.3rem;font-weight:700;text-align:right;white-space:nowrap}.mn small{font-size:.75rem;font-weight:500;color:var(--mute);margin-left:4px}
+.mb{grid-area:b;display:block;height:6px;background:var(--line);border-radius:3px;overflow:hidden}.mb i{display:block;height:100%;background:var(--ink);opacity:.75}
+.mx{grid-area:x;color:var(--mute);font-size:.82rem;margin-top:3px}
+.defs dt{font-weight:650;margin-top:12px}.defs dd{margin:2px 0 0;color:var(--mute);max-width:680px}
+@media (max-width:620px){.mr{grid-template-columns:1fr auto;grid-template-areas:"k n" "b b" "x x"}.mb{margin-top:6px}}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
 .qrow{display:grid;grid-template-columns:26px 92px 1fr 104px;grid-template-areas:"i l b v" ". . x x";align-items:center;gap:2px 10px;margin:6px 0}
 .qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.ql{grid-area:l;font-size:.88rem;font-weight:600}.qrow .cb.qsb{background:#d08a00}.qrow .cb.qmb{background:var(--accent)}.qrow .cb.ql2b{background:#8a63d2}.qrow .cb.qrb{background:#13897a}.qrow .cb.qpb{background:#5c8a2e}.ql2{background:#efe8fb;color:#6b47b8}.qr{background:#e3f4f1;color:#0f7468}.qp{background:#ebf3e2;color:#4a7424}@media (prefers-color-scheme:dark){.ql2{background:#2a2140;color:#b49cf0}.qr{background:#13302c;color:#6fd3c4}.qp{background:#1f2b14;color:#a3d277}}@media (max-width:560px){.qrow{grid-template-columns:26px 1fr 96px;grid-template-areas:"i l v" "b b b" "x x x"}}
 .qv{grid-area:v;font-weight:700;font-size:.9rem;text-align:right;white-space:nowrap}.qx{grid-area:x;color:var(--mute);font-size:.8rem}
 .qi{grid-area:i;display:inline-flex;width:24px;height:24px;border-radius:7px;align-items:center;justify-content:center;vertical-align:middle}
-.qs{background:var(--warnbg);color:var(--warn)}.qm{background:var(--code);color:var(--accent)}.ic{width:15px;height:15px}
+.qs,.qm{background:none;color:var(--mute)}.ic{width:15px;height:15px}
 .stat .k .qi{width:20px;height:20px;margin-right:4px}.stat .k .ic{width:13px;height:13px}.chart{position:relative;margin-top:10px}.crow{display:grid;grid-template-columns:150px 1fr;gap:2px 14px;align-items:center;margin:12px 0}
 .cl{font-weight:600;font-size:.95rem}.ct{position:relative;height:26px;background:var(--bg);border-radius:6px}.cb{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
 .cv{position:absolute;left:8px;top:3px;font-size:.85rem;font-weight:700;color:#fff;mix-blend-mode:normal;text-shadow:0 0 3px rgba(0,0,0,.35)}.cs{grid-column:2;color:var(--mute);font-size:.82rem}
@@ -308,29 +317,37 @@ ICON.read = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 
 ICON.long = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 10h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 ICON.power = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function charts(ids, byModel, name, origin) {
+  // (Nov 25, David: "too AI generated ... the energy bar isn't consistent") every bar is the number printed beside it, scaled to the
+  // largest of the models shown (Size: to the card's 24 GB). One ink, thin bars, plain labels; "lower is better" said where it is.
   const pick = id => byModel[id].find(x => x.context === 16384) || byModel[id][0];
   const at = (id, ctx) => (byModel[id].find(x => x.context === ctx) || {}).gen_tps;
-  const max = k => Math.max(...ids.map(id => +pick(id)[k] || 0), 1e-9);
-  const READ = 8;
-  const secs = tps => Math.max(1, Math.round(400 / tps));
-  const feel = tps => tps >= 60 ? "instant" : tps >= 25 ? "fast" : tps >= READ ? "comfortable" : "slow";
-  const row = (cls, icon, label, pct, value, note, title) => `<div class="qrow" title="${esc(title)}"><span class="qi ${cls}">${icon}</span>
-<div class="ql">${label}</div><div class="ct"><div class="cb ${cls}b" style="width:${Math.max(2, Math.min(100, pct)).toFixed(1)}%"></div></div><span class="qv">${value}</span><span class="qx">${note}</span></div>`;
-  const cards = ids.map(id => { const r = pick(id), used = r.gpu_mem_peak_gib || 0, m = DATA.models.find(x => x.id === id) || {};
-    const s4 = at(id, 4096), s32 = at(id, 32768), keep = s4 && s32 ? s32 / s4 : null;
-    const doc = r.prompt_tps_4k ? Math.max(0.1, 4000 / r.prompt_tps_4k) : null;
-    const size = m.params_b ? `${m.params_b}B` + (m.active_b && m.active_b < m.params_b ? ` (${m.active_b}B active)` : "") : "";
-    return `<div class="qref"><div class="qn"><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a><span class="small"> ${esc(size)} · ${esc(r.quant || "")} · measured ${esc(r.date || "")}</span></div>
-${row("qs", ICON.speed, "Speed", 100 * r.gen_tps / max("gen_tps"), `${(+r.gen_tps).toFixed(0)} tokens/s`, `${feel(r.gen_tps)} · a 300-word answer in ~${secs(r.gen_tps)} s`, `${r.gen_tps} tokens/s at 16K context`)}
-${keep ? row("ql2", ICON.long, "Long chats", 100 * keep, keep >= 0.9 ? "stays fast" : `${Math.round(100 * keep)}% speed`, `${(+s4).toFixed(0)} → ${(+s32).toFixed(0)} tokens/s from a short chat (4K) to a long one (32K)`, "speed at 4K, 16K and 32K context") : ""}
-${doc ? row("qr", ICON.read, "Reading", 100 * r.prompt_tps_4k / max("prompt_tps_4k"), `${doc < 10 ? doc.toFixed(1) : Math.round(doc)} s`, `to read a 4,000-token document (about 3,000 words) before answering`, `${r.prompt_tps_4k} tokens/s reading a 4,000-token prompt`) : ""}
-${row("qm", ICON.size, "Size", 100 * used / 24, `${used.toFixed(1)} / 24 GB`, `${(24 - used).toFixed(1)} GB free${24 - used >= 8 ? " · room for a second model" : 24 - used >= 3 ? " · room for longer chats" : " · nearly full"}`, `${used} GB of the card's 24 GB at 16K context`)}
-${r.tokens_per_joule ? row("qp", ICON.power, "Energy", 100 * r.tokens_per_joule / max("tokens_per_joule"), `${(r.power_w * 400 / r.gen_tps / 3600).toFixed(2)} Wh`, `energy per 300-word answer · ${Math.round(r.power_w)} W while generating, ${r.tokens_per_joule} tokens per joule`, `${r.power_w} W average while generating`) : ""}
-</div>`; }).join("");
-  return `<p class="small"><span class="qi qs">${ICON.speed}</span> Speed &nbsp;<span class="qi ql2">${ICON.long}</span> Long chats &nbsp;<span class="qi qr">${ICON.read}</span> Reading a document &nbsp;<span class="qi qm">${ICON.size}</span> Size on the card &nbsp;<span class="qi qp">${ICON.power}</span> Energy - longer bars are better, except Size (shorter leaves more room).</p>
-<div class="qgrid">${cards}</div>
-<div class="card"><h2 style="margin-top:0">Which is better?</h2>
-<p style="margin:0">Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but run slower and fill more of the card; small ones are quick but simpler. A good rule: <b>pick the biggest model that's still fast enough for you</b> - anything above reading speed (about ${READ} tokens a second) feels fine for chat; if you work with long documents, look at Reading too.</p></div>`;
+  const vals = ids.map(id => { const r = pick(id), s4 = at(id, 4096), s32 = at(id, 32768);
+    return { id, r, speed: +r.gen_tps, keep: s4 && s32 ? Math.min(100, Math.round(100 * s32 / s4)) : null, s4, s32,
+             read: r.prompt_tps_4k ? 4000 / r.prompt_tps_4k : null, size: +r.gpu_mem_peak_gib || 0,
+             wh: r.power_w && r.gen_tps ? r.power_w * 400 / r.gen_tps / 3600 : null }; });
+  const mx = k => Math.max(...vals.map(v => v[k] || 0), 1e-9);
+  const bar = (v, of) => `<span class="mb"><i style="width:${Math.max(1.5, Math.min(100, 100 * v / of)).toFixed(1)}%"></i></span>`;
+  const row = (icon, label, dir, num, unit, b, note) => `<div class="mr"><div class="mk">${icon}<span>${label}</span>${dir ? `<em>${dir}</em>` : ""}</div>
+<div class="mn">${num}<small>${unit}</small></div>${b}<div class="mx">${note}</div></div>`;
+  const sec = v => v < 10 ? v.toFixed(1) : String(Math.round(v));
+  const cards = vals.map(v => { const m = DATA.models.find(x => x.id === v.id) || {};
+    const size = m.params_b ? `${m.params_b}B parameters` + (m.active_b && m.active_b < m.params_b ? `, ${m.active_b}B active` : "") : "";
+    return `<section class="model"><h3><a href="${origin}/run/${esc(v.id)}/on/rtx-3090">${esc(name(v.id))}</a></h3><div class="mmeta">${esc(size)} · ${esc(v.r.quant || "")} · ${esc(v.r.ollama_tag || "")} · ${esc(v.r.date || "")}</div>
+${row(ICON.speed, "Speed", "", v.speed.toFixed(0), "tokens/s", bar(v.speed, mx("speed")), `A 300-word answer takes about ${Math.max(1, Math.round(400 / v.speed))} s to write out.`)}
+${v.keep != null ? row(ICON.long, "Long chats", "", v.keep, "% kept", bar(v.keep, 100), `Speed with a long conversation (32K) vs a short one (4K): ${v.s32.toFixed(0)} vs ${v.s4.toFixed(0)} tokens/s.`) : ""}
+${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "s", bar(v.read, mx("read")), `Wait before it starts answering a 3,000-word document.`) : ""}
+${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24), `${(24 - v.size).toFixed(1)} GB of the card left for longer chats or another model.`)}
+${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh")), `Electricity for a 300-word answer (card draws ${Math.round(v.r.power_w)} W while writing).`) : ""}
+</section>`; }).join("");
+  return `<div class="models">${cards}</div>
+<h2>Reading these</h2>
+<dl class="defs"><dt>Speed</dt><dd>How fast words come out once it has started. People read about 8 tokens a second, so anything well above that keeps ahead of you.</dd>
+<dt>Long chats</dt><dd>Models carry the whole conversation along; the longer it gets, the more there is to look through for each new word. This is how much of its short-chat speed it keeps when the conversation reaches about 24,000 words (32K tokens).</dd>
+<dt>Reading</dt><dd>Before answering, a model reads everything you gave it - a pasted document, a long question, the chat so far. This is the wait for a 4,000-token (about 3,000-word) document before the first word appears.</dd>
+<dt>Size</dt><dd>How much of the card's 24 GB memory it takes while running, including about 0.5-1 GB the desktop uses.</dd>
+<dt>Energy</dt><dd>Electricity the card uses to write a 300-word answer. Every bar shows the number beside it, compared with the other models here; Size is compared with the full card.</dd></dl>
+<h2>Which is better?</h2>
+<p>Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but are slower and take more of the card. A good rule: pick the biggest model that is still fast enough for you - and if you work with long documents, check Reading.</p>`;
 }
 function measuredPage(origin) {
   const rows = measuredFile.measured || [];
