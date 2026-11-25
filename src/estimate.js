@@ -48,7 +48,16 @@ export function closest(q, rows, n = 3) {
 // Apple chips not in the list by name: unified memory, ~75% usable by the GPU, bandwidth by chip tier
 const APPLE_BW = { m1: [68, 200, 400, 800], m2: [100, 200, 400, 800], m3: [100, 150, 400, 819], m4: [120, 273, 546, 819] };
 
+// (Nov 25: "2x RTX 3090" was answered for one card) several identical cards: memory adds up, the model is split by layers, so
+// speed stays near one card's (each token still passes every layer) less ~10% for the hand-off between cards
+const MULTI = /^\s*(?:(\d)\s*(?:x|×|\*)\s*|(dual|two|pair of|triple|three|quad|four)\s+)|\s(?:x|×)\s*(\d)\s*$/i;
+const WORDN = { dual: 2, two: 2, "pair of": 2, triple: 3, three: 3, quad: 4, four: 4 };
 export function findGpu(q, gpus) {
+  const mq = String(q || "").match(MULTI), cards = mq ? +(mq[1] || mq[3]) || WORDN[(mq[2] || "").toLowerCase()] || 1 : 1;
+  if (cards > 1 && cards <= 8) {
+    const one = findGpu(String(q).replace(MULTI, " ").trim(), gpus);
+    if (one && one.vendor !== "apple") return { ...one, id: `${cards}x-${one.id}`, name: `${cards}× ${one.name}`, vram_gb: one.vram_gb * cards, cards, per_card_gb: one.vram_gb };
+  }
   const g = bestMatch(q, gpus);
   if (g) { const via = viaAlias(q, g); const { __alias, ...row } = g; return { ...row, matched: "known", ...(via ? { asked_as: q } : {}) }; }
   const n = norm(q), mm = n.match(/\b(m[1-4])\s*(pro|max|ultra)?\b/), gb = n.match(/(\d+(?:\.\d+)?)\s*gb/);
@@ -101,11 +110,11 @@ export function estimate(model, gpu, opts = {}, quants = {}) {
   const kv = kvBytes(model, ctx, kvElem);
   const overhead = 0.3 * GiB + 0.01 * weights;
   const total = weights + kv + overhead;
-  const usable = gpu.vram_gb * GiB * (gpu.usable_fraction || 1) - (gpu.vendor === "apple" ? 0 : RESERVE_GIB * GiB);
+  const usable = gpu.vram_gb * GiB * (gpu.usable_fraction || 1) - (gpu.vendor === "apple" ? 0 : RESERVE_GIB * GiB * (gpu.cards || 1));
   const verdict = total <= usable * 0.95 ? "fits" : total <= usable ? "tight" : "does_not_fit";
   const active = (model.active_b || model.params_b) * 1e9 * bits / 8;
   const perToken = active + kv * 0.5;                          // the cache is read too - about half full on average
-  const eff = (EFF[gpu.vendor] || 0.65) * (model.active_b ? MOE_EFF : 1);
+  const eff = (EFF[gpu.vendor] || 0.65) * (model.active_b ? MOE_EFF : 1) * (gpu.cards > 1 ? 0.9 : 1);
   let tps;
   if (verdict !== "does_not_fit") tps = eff * gpu.bandwidth_gbs * 1e9 / perToken;
   else {                                                        // the rest runs from system memory - much slower
@@ -118,6 +127,9 @@ export function estimate(model, gpu, opts = {}, quants = {}) {
     quant, context: ctx, verdict,
     memory_gb: { weights: r1(weights / GiB), context_cache: r1(kv / GiB), overhead: r1(overhead / GiB), total: r1(total / GiB), available: r1(usable / GiB) },
     gen_tokens_per_s: Math.max(0.1, r1(tps)),
+    gen_tokens_per_s_range: [Math.max(0.1, r1(tps * 0.85)), r1(tps * 1.15)],   // (Nov 25) estimates have landed within about 15% of the node's measurements
+    ...(gpu.cards > 1 ? { cards: gpu.cards } : {}),
+    ...(model.max_ctx ? { model_max_context: model.max_ctx } : {}), ...(model.native_ctx ? { model_native_context: model.native_ctx } : {}),
     partly_on_cpu: verdict === "does_not_fit",
   };
 }

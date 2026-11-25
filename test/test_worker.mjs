@@ -112,4 +112,19 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("a Mac not listed by name is treated as a Mac (75% of unified memory), not a 16 GB graphics card", /Apple M2 \(16 GB\)/.test(r3[1].result.content[0].text) && /of 12 GB available/.test(r3[1].result.content[0].text), r3[1].result.content[0].text);
   const r4 = await rpc({ jsonrpc: "2.0", id: 83, method: "tools/call", params: { name: "list_known", arguments: { kind: "hardware" } } });
   check("list_known gives ids, sizes and what's measured", r4[1].result.structuredContent.hardware.some(h => h.id === "rtx-3090" && h.memory_gb === 24 && h.measured) && /rtx-2080/.test(r4[1].result.content[0].text)); }
+{ const c = async (a) => (await rpc({ jsonrpc: "2.0", id: 90, method: "tools/call", params: { name: "check_fit", arguments: a } }))[1].result;
+  const two = await c({ model: "llama 3.3 70b", hardware: "2x rtx 3090" }), one = await c({ model: "llama 3.3 70b", hardware: "rtx 3090" });
+  check("2x RTX 3090: memory adds up (70B fits on two, not one), with a note on splitting", two.structuredContent.verdict === "fits" && one.structuredContent.verdict === "does_not_fit" && /split across them/.test(two.content[0].text), two.content[0].text);
+  const dual = await c({ model: "llama 3.3 70b", hardware: "dual 3090" });
+  check("...'dual 3090' too", dual.structuredContent.hardware.startsWith("2×"));
+  const far = await c({ model: "llama 3.2 1b", hardware: "rtx 4060", context: 1000000 });
+  check("a context past the model's maximum is warned about first", /^.*\nWarning: Llama 3\.2 1B handles at most 131,072/.test(far.content[0].text) && far.structuredContent.context_beyond_model_max, far.content[0].text.slice(0, 300));
+  const yarn = await c({ model: "qwen3 8b", hardware: "rtx 4060", context: 65536 });
+  check("past the native length: says long-context settings are needed", /YaRN/.test(yarn.content[0].text));
+  const est = await c({ model: "llama 3.1 8b", hardware: "rtx 4060" });
+  check("estimates come with a likely range and a page to cite", /likely \d+(\.\d)?-\d+/.test(est.content[0].text) && est.structuredContent.gen_tokens_per_s_range.length === 2 && /\/run\/llama-3\.1-8b\/on\/rtx-4060$/.test(est.structuredContent.source_url), est.content[0].text);
+  const [sl, jl] = await rpc({ jsonrpc: "2.0", id: 91, method: "tools/list" });
+  check("tools declare what they return (outputSchema) and the intro names every tool", jl.result.tools.filter(x => x.outputSchema).length === 5);
+  const [si, ji] = await rpc({ jsonrpc: "2.0", id: 92, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "made-up", version: "1" }, capabilities: {} } });
+  check("...", ["check_fit", "compare", "suggest_models", "node_log", "list_known", "report_issue"].every(n => ji.result.instructions.includes(n)), ji.result.instructions); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

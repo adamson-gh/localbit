@@ -7,7 +7,8 @@ import gpusFile from "../data/gpus.json" with { type: "json" };
 import measuredFile from "../data/measured.json" with { type: "json" };
 import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest } from "./estimate.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
+const SITE = "https://localbit.adamson-cf.workers.dev";
 const OWNER = { name: "adamson-gh", url: "https://github.com/adamson-gh" };
 const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [...(measuredFile.measured || []), ...modelsFile.measured], gpus: gpusFile.gpus };
 // When the data was last checked: specs = the cards and models files; measured = the newest overnight result.
@@ -24,17 +25,29 @@ const KNOWN_AGENTS = ["ChatGPT-User", "OAI-SearchBot", "GPTBot", "Claude-User", 
   "PerplexityBot", "Google-Extended", "Googlebot", "bingbot", "Applebot", "Meta-ExternalAgent", "Amazonbot", "Bytespider", "CCBot", "DuckAssistBot",
   "MistralAI-User", "cohere-ai", "Cursor", "python-httpx", "node", "curl"];
 
-const INSTRUCTIONS = "LocalBit answers whether an AI model will run on a given graphics card or computer, how much memory it needs and roughly how fast " +
-  "it will generate. Call check_fit with a model (e.g. 'llama 3.1 8b', 'qwen3:30b') and hardware (e.g. 'RTX 3090', 'M4 Max', '12 GB'). Answers say " +
-  "whether they are estimated or measured on real machines. If an answer turns out wrong, call report_issue with what was seen.";
+const INSTRUCTIONS = "LocalBit answers whether a local AI model will run on a graphics card, several cards ('2x RTX 3090') or a Mac, how much memory " +
+  "it needs and how fast it will generate. check_fit for one model on one setup; compare for two models or two setups; suggest_models for what fits; " +
+  "node_log for the newest measurements from LocalBit's RTX 3090 node; list_known for exact names and ids. Every answer says estimated (with a likely " +
+  "range) or measured, how current the data is, and links a page to cite (source_url). If an answer turns out wrong, call report_issue with what was seen.";
 
+const S = (props, extra = {}) => ({ type: "object", properties: props, ...extra });
+const OUT = {
+  check_fit: S({ model: { type: "string" }, hardware: { type: "string" }, verdict: { type: "string", enum: ["fits", "tight", "does_not_fit"] },
+    quant: { type: "string" }, context: { type: "integer" }, memory_gb: S({ weights: { type: "number" }, context_cache: { type: "number" }, overhead: { type: "number" }, total: { type: "number" }, available: { type: "number" } }),
+    gen_tokens_per_s: { type: "number" }, gen_tokens_per_s_range: { type: "array", items: { type: "number" } }, basis: { type: "string", enum: ["estimated", "measured"] },
+    measured: { type: ["object", "null"] }, suggestions: { type: "array", items: { type: "string" } }, source_url: { type: "string" }, data_as_of: S({ specs: { type: ["string", "null"] }, measured: { type: ["string", "null"] } }) }),
+  suggest_models: S({ hardware: { type: "string" }, models: { type: "array", items: S({ model: { type: "string" }, quant: { type: "string" }, memory_gb: { type: "number" }, gen_tokens_per_s: { type: "number" }, basis: { type: "string" } }) } }),
+  compare: S({ a: { type: "object" }, b: { type: "object" }, a_node: { type: ["object", "null"] }, b_node: { type: ["object", "null"] } }),
+  node_log: S({ readings: { type: "array", items: S({ model: { type: "string" }, date: { type: "string" }, gen_tps: { type: "number" }, quality_pct: { type: ["number", "null"] }, memory_gb: { type: "number" } }) } }),
+  list_known: S({ models: { type: "array" }, hardware: { type: "array" } }),
+};
 const TOOLS = [
   { name: "check_fit", title: "Will this model run on this hardware?",
     description: "Whether a local AI model fits on a graphics card or Apple computer, the memory it needs (weights + context cache), and estimated " +
       "generation speed in tokens per second. Says whether the speed is estimated or measured, and what to change if it doesn't fit.",
     inputSchema: { type: "object", required: ["model", "hardware"], properties: {
       model: { type: "string", description: "Model name, e.g. 'Llama 3.1 8B', 'qwen3:30b', 'gpt-oss 20b', or a size like '13B model'. list_known gives exact names." },
-      hardware: { type: "string", description: "Graphics card or computer, e.g. 'RTX 3090', 'RX 7900 XTX', 'M2 Pro 32 GB', or memory like '12 GB card'. list_known gives exact names." },
+      hardware: { type: "string", description: "Graphics card, several cards ('2x RTX 3090') or a Mac ('M2 Pro 32 GB'), or memory like '12 GB card'. list_known gives exact names." },
       context: { type: "integer", description: "Context length in tokens (default 8192)." },
       quant: { type: "string", description: "Quantization, e.g. Q4_K_M (default), Q8_0, F16." },
       kv_cache: { type: "string", description: "Context cache type: f16 (default), q8_0 or q4_0." } } },
@@ -98,7 +111,7 @@ function checkFit(args) {
   const meas = measuredFor(e, DATA.measured);
   const tips = suggestions(e, m, g, DATA);
   const speed = meas ? `${meas.gen_tokens_per_s} tokens/s measured (${meas.results} result${meas.results > 1 ? "s" : ""}, ${meas.quant}, ${meas.runtime}${meas.date ? ", measured " + meas.date : ""})`
-                     : `about ${e.gen_tokens_per_s} tokens/s (estimated${e.partly_on_cpu ? ", with part of the model running from system memory" : ""})`;
+                     : `about ${e.gen_tokens_per_s} tokens/s (estimated, likely ${e.gen_tokens_per_s_range[0]}-${e.gen_tokens_per_s_range[1]}${e.partly_on_cpu ? ", with part of the model running from system memory" : ""})`;
   const verdictText = { fits: "Yes, it fits.", tight: "Just barely - it may not fit once other apps use the card.", does_not_fit: "No, not entirely on this hardware." }[e.verdict];
   const lines = [
     `${e.model} on ${e.hardware} (${e.quant}, ${e.context.toLocaleString("en-US")}-token context): ${verdictText}`,
@@ -106,13 +119,20 @@ function checkFit(args) {
     `Speed: ${speed}.`,
     ...tips.map(t => "- " + t),
   ];
+  if (g.cards > 1) lines.push(`Note: ${g.cards} cards of ${g.per_card_gb} GB each, the model split across them by layers - memory adds up; speed stays near one card's, about 10% lower for the hand-off. Runtimes like llama.cpp and Ollama do this.`);
+  if (m.max_ctx && e.context > m.max_ctx) lines.splice(1, 0, `Warning: ${m.name} handles at most ${m.max_ctx.toLocaleString("en-US")} tokens of context - ${e.context.toLocaleString("en-US")} is beyond what it was made for, whatever the memory. The numbers below are for memory only.`);
+  else if (m.native_ctx && e.context > m.native_ctx) lines.push(`Note: past ${m.native_ctx.toLocaleString("en-US")} tokens ${m.name} needs long-context (YaRN) settings turned on in the runtime.`);
   if (m.asked_as) lines.push(`Note: "${m.asked_as}" is built on the same design as ${m.name}, so it is sized as that.`);
   if (g.asked_as) lines.push(`Note: "${g.asked_as}" is sized as ${g.name}.`);
   if (g.vendor === "apple" && g.matched === "generic") lines.push(`Note: a Mac LocalBit doesn't list by name - unified memory, about 75% usable for the model, typical ${g.name.split(" (")[0]} bandwidth.`);
   if (m.matched === "generic" || g.matched === "generic") lines.push("Note: estimated from size alone - give the exact model or card name for a closer answer.");
   if (!m.verified && m.matched === "known") lines.push("Note: this model's specifications are from its published config and not yet re-checked.");
+  const url = m.matched === "known" && g.matched === "known" && !g.cards ? `${SITE}/run/${m.id}/on/${g.id}` :
+    `${SITE}/check?model=${encodeURIComponent(args.model)}&hardware=${encodeURIComponent(args.hardware)}`;
+  lines.push(`Details: ${url}`);
   lines.push(asOfText());
-  return { text: lines.join("\n"), data: { ...e, measured: meas, suggestions: tips, basis: meas ? "measured" : "estimated", data_as_of: AS_OF },
+  return { text: lines.join("\n"), data: { ...e, measured: meas, suggestions: tips, basis: meas ? "measured" : "estimated", data_as_of: AS_OF, source_url: url,
+           ...(m.max_ctx && e.context > m.max_ctx ? { context_beyond_model_max: true } : {}) },
            log: { model_id: m.id, gpu_id: g.id, verdict: e.verdict, context: e.context, quant: e.quant } };
 }
 
@@ -182,6 +202,7 @@ function nodeLog(args) {
     (x.quality_pct != null ? `, ${x.quality_pct}% quality` : "") + `, ${x.memory_gb} GB, ${x.read_4k_s ?? "-"} s to read 3,000 words, ${x.wh_per_answer ?? "-"} Wh per answer`).join("\n") : "No readings yet.";
   return { text, data: { readings: e, data_as_of: AS_OF }, log: { verdict: "log" } };
 }
+for (const tdef of TOOLS) if (OUT[tdef.name]) tdef.outputSchema = OUT[tdef.name];
 const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown, compare, node_log: nodeLog };
 
 // ---------- logging (no IPs, nothing personal) ----------
@@ -357,7 +378,7 @@ function resultCard(out) {
   const speed = meas ? meas.gen_tokens_per_s : d.gen_tokens_per_s;
   return `<div class="card"><span class="verdict v-${esc(d.verdict)}">${esc(vt)}</span> <span class="small">${esc(d.quant)} · ${(+d.context).toLocaleString("en-US")}-token context</span>
 <div class="stats"><div class="stat"><div class="k"><span class="qi qm">${ICON.size}</span>Memory needed</div><div class="v">${mg.total} GB</div><div class="s">of ${mg.available} GB available</div></div>
-<div class="stat"><div class="k"><span class="qi qs">${ICON.speed}</span>Speed${meas ? '<span class="tag m">measured</span>' : '<span class="tag">estimated</span>'}</div><div class="v">${speed} <span style="font-size:.8rem;font-weight:500">tokens/s</span></div><div class="s">${meas ? esc((meas.runtime || "") + (meas.date ? ", " + meas.date : "")) : (d.partly_on_cpu ? "part runs from system memory" : "from memory bandwidth")}</div></div></div>
+<div class="stat"><div class="k"><span class="qi qs">${ICON.speed}</span>Speed${meas ? '<span class="tag m">measured</span>' : '<span class="tag">estimated</span>'}</div><div class="v">${speed} <span style="font-size:.8rem;font-weight:500">tokens/s</span></div><div class="s">${meas ? esc((meas.runtime || "") + (meas.date ? ", " + meas.date : "")) : (d.partly_on_cpu ? "part runs from system memory" : `likely ${d.gen_tokens_per_s_range[0]}-${d.gen_tokens_per_s_range[1]}`)}</div></div></div>
 <div style="position:relative"><div class="bar" title="model, context cache, overhead"><i style="width:${pct(mg.weights)}%;background:var(--accent)"></i><i style="width:${pct(mg.context_cache)}%;background:#8fa9ee"></i><i style="width:${pct(mg.overhead)}%;background:#c4cff3"></i></div>${mg.total > mg.available ? `<span title="available" style="position:absolute;top:-4px;bottom:-4px;left:${pct(mg.available)}%;width:2px;background:var(--bad)"></span>` : ""}</div>
 <div class="small">Model ${mg.weights} GB · context cache ${mg.context_cache} GB · overhead ${mg.overhead} GB${mg.total > mg.available ? ` · <b style="color:var(--bad)">${(mg.total - mg.available).toFixed(1)} GB over</b>` : ""}</div>
 ${(d.suggestions || []).length ? `<ul class="tips">${d.suggestions.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}</div>`;
