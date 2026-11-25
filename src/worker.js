@@ -212,7 +212,13 @@ ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
 code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
 table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
-.scroll{overflow-x:auto}.chart{position:relative;margin-top:10px}.crow{display:grid;grid-template-columns:150px 1fr;gap:2px 14px;align-items:center;margin:12px 0}
+.scroll{overflow-x:auto}.qgrid{display:grid;gap:14px}.qref{background:var(--bg);border-radius:12px;padding:12px 14px}.qn{font-weight:650;margin-bottom:6px}
+.qrow{display:grid;grid-template-columns:26px 1fr 96px;grid-template-areas:"i b v" ". x x";align-items:center;gap:2px 10px;margin:6px 0}
+.qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.qrow .cb.cbs{background:#d08a00}.qrow .cb.cbm{background:var(--accent)}
+.qv{grid-area:v;font-weight:700;font-size:.9rem;text-align:right;white-space:nowrap}.qx{grid-area:x;color:var(--mute);font-size:.8rem}
+.qi{grid-area:i;display:inline-flex;width:24px;height:24px;border-radius:7px;align-items:center;justify-content:center;vertical-align:middle}
+.qs{background:var(--warnbg);color:var(--warn)}.qm{background:var(--code);color:var(--accent)}.ic{width:15px;height:15px}
+.stat .k .qi{width:20px;height:20px;margin-right:4px}.stat .k .ic{width:13px;height:13px}.chart{position:relative;margin-top:10px}.crow{display:grid;grid-template-columns:150px 1fr;gap:2px 14px;align-items:center;margin:12px 0}
 .cl{font-weight:600;font-size:.95rem}.ct{position:relative;height:26px;background:var(--bg);border-radius:6px}.cb{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
 .cv{position:absolute;left:8px;top:3px;font-size:.85rem;font-weight:700;color:#fff;mix-blend-mode:normal;text-shadow:0 0 3px rgba(0,0,0,.35)}.cs{grid-column:2;color:var(--mute);font-size:.82rem}
 .readline{position:absolute;top:0;bottom:0;left:calc(164px + (100% - 164px) * var(--read, 0));border-left:2px dashed var(--mute);pointer-events:none}
@@ -257,8 +263,8 @@ function resultCard(out) {
   const tot = Math.max(mg.total || 0, mg.available || 0) || 1, pct = v => Math.max(0, Math.min(100, 100 * (v || 0) / tot)).toFixed(1);
   const speed = meas ? meas.gen_tokens_per_s : d.gen_tokens_per_s;
   return `<div class="card"><span class="verdict v-${esc(d.verdict)}">${esc(vt)}</span> <span class="small">${esc(d.quant)} · ${(+d.context).toLocaleString("en-US")}-token context</span>
-<div class="stats"><div class="stat"><div class="k">Memory needed</div><div class="v">${mg.total} GB</div><div class="s">of ${mg.available} GB available</div></div>
-<div class="stat"><div class="k">Speed${meas ? '<span class="tag m">measured</span>' : '<span class="tag">estimated</span>'}</div><div class="v">${speed} <span style="font-size:.8rem;font-weight:500">tokens/s</span></div><div class="s">${meas ? esc((meas.runtime || "") + (meas.date ? ", " + meas.date : "")) : (d.partly_on_cpu ? "part runs from system memory" : "from memory bandwidth")}</div></div></div>
+<div class="stats"><div class="stat"><div class="k"><span class="qi qm">${ICON.size}</span>Memory needed</div><div class="v">${mg.total} GB</div><div class="s">of ${mg.available} GB available</div></div>
+<div class="stat"><div class="k"><span class="qi qs">${ICON.speed}</span>Speed${meas ? '<span class="tag m">measured</span>' : '<span class="tag">estimated</span>'}</div><div class="v">${speed} <span style="font-size:.8rem;font-weight:500">tokens/s</span></div><div class="s">${meas ? esc((meas.runtime || "") + (meas.date ? ", " + meas.date : "")) : (d.partly_on_cpu ? "part runs from system memory" : "from memory bandwidth")}</div></div></div>
 <div style="position:relative"><div class="bar" title="model, context cache, overhead"><i style="width:${pct(mg.weights)}%;background:var(--accent)"></i><i style="width:${pct(mg.context_cache)}%;background:#8fa9ee"></i><i style="width:${pct(mg.overhead)}%;background:#c4cff3"></i></div>${mg.total > mg.available ? `<span title="available" style="position:absolute;top:-4px;bottom:-4px;left:${pct(mg.available)}%;width:2px;background:var(--bad)"></span>` : ""}</div>
 <div class="small">Model ${mg.weights} GB · context cache ${mg.context_cache} GB · overhead ${mg.overhead} GB${mg.total > mg.available ? ` · <b style="color:var(--bad)">${(mg.total - mg.available).toFixed(1)} GB over</b>` : ""}</div>
 ${(d.suggestions || []).length ? `<ul class="tips">${d.suggestions.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}</div>`;
@@ -292,31 +298,27 @@ function reportForm(origin, m, g) {
 <p><label>Note (no personal details)<br><textarea name="note" maxlength="500" rows="3" cols="50"></textarea></label></p><p><button>Send report</button></p></form></details>`;
 }
 // (Nov 25, David: "I can't tell if one is better than the other") the measured page leads with two plain charts and a how-to-read
+const ICON = {
+  speed: `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" fill="currentColor"/></svg>`,
+  size: `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+};
+// (Nov 25, David: "include little icons, one for speed, another for size ... a quick reference for the model") one card per model:
+// a speed bar and a card-memory bar, each with its icon; the same icons label the result cards
 function charts(ids, byModel, name, origin) {
   const pick = id => byModel[id].find(x => x.context === 16384) || byModel[id][0];
   const maxT = Math.max(...ids.map(id => pick(id).gen_tps || 0), 10);
-  const READ = 8;   // tokens/s - about as fast as most people read
-  const words = tps => Math.round(tps * 0.75);
+  const READ = 8;
   const secs = tps => Math.max(1, Math.round(400 / tps));   // a ~300-word answer is ~400 tokens
   const feel = tps => tps >= 60 ? "instant" : tps >= 25 ? "fast" : tps >= READ ? "comfortable" : "slow";
-  const speed = ids.map(id => { const r = pick(id), w = (100 * r.gen_tps / maxT).toFixed(1);
-    return `<div class="crow" title="${esc(name(id))}: ${r.gen_tps} tokens/s at 16K context - about ${words(r.gen_tps)} words a second">
-<div class="cl"><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a></div>
-<div class="ct"><div class="cb" style="width:${w}%"></div><span class="cv">${(+r.gen_tps).toFixed(0)} tokens/s</span></div>
-<div class="cs">${feel(r.gen_tps)} · a 300-word answer in about ${secs(r.gen_tps)} s</div></div>`; }).join("");
-  const mem = ids.map(id => { const r = pick(id), used = r.gpu_mem_peak_gib || 0, w = (100 * used / 24).toFixed(1);
-    return `<div class="crow" title="${esc(name(id))}: ${used} GB of 24 GB used at 16K context">
-<div class="cl">${esc(name(id))}</div>
-<div class="ct"><div class="cb" style="width:${w}%"></div><span class="cv">${used.toFixed(1)} of 24 GB</span></div>
-<div class="cs">${(24 - used).toFixed(1)} GB left over${24 - used >= 8 ? " - room for a longer context or a second model" : 24 - used >= 3 ? " - room for a longer context" : " - close to full"}</div></div>`; }).join("");
-  return `<div class="card"><h2 style="margin-top:0">How fast does it answer?</h2>
-<p class="small" style="margin-top:0">Words appear at this speed once it starts. Most people read about ${READ} tokens a second, so anything faster than that keeps ahead of you. Slow = below reading speed; comfortable, fast and instant are above it.</p>
-<div class="chart">${speed}</div></div>
-<div class="card"><h2 style="margin-top:0">How much of the 24 GB card does it use?</h2>
-<p class="small" style="margin-top:0">What's left over is room for a longer conversation (more context) or another model at the same time.</p>
-<div class="chart">${mem}</div></div>
+  const cards = ids.map(id => { const r = pick(id), used = r.gpu_mem_peak_gib || 0;
+    return `<div class="qref"><div class="qn"><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a><span class="small"> ${esc(r.quant || "")}</span></div>
+<div class="qrow" title="Speed: ${r.gen_tps} tokens/s at 16K context"><span class="qi qs">${ICON.speed}</span><div class="ct"><div class="cb cbs" style="width:${(100 * r.gen_tps / maxT).toFixed(1)}%"></div></div><span class="qv">${(+r.gen_tps).toFixed(0)} tokens/s</span><span class="qx">${feel(r.gen_tps)} · 300 words in ~${secs(r.gen_tps)} s</span></div>
+<div class="qrow" title="Size: ${used} GB of the card's 24 GB at 16K context"><span class="qi qm">${ICON.size}</span><div class="ct"><div class="cb cbm" style="width:${(100 * used / 24).toFixed(1)}%"></div></div><span class="qv">${used.toFixed(1)} / 24 GB</span><span class="qx">${(24 - used).toFixed(1)} GB free${24 - used >= 8 ? " · room for a 2nd model" : 24 - used >= 3 ? " · room for longer chats" : " · nearly full"}</span></div></div>`; }).join("");
+  return `<div class="card"><h2 style="margin-top:0">Quick reference</h2>
+<p class="small" style="margin-top:0"><span class="qi qs">${ICON.speed}</span> <b>Speed</b> - how fast words appear once it starts (people read about ${READ} tokens a second; longer bar = faster) &nbsp; <span class="qi qm">${ICON.size}</span> <b>Size</b> - how much of the 24 GB card it fills (shorter bar = more room left)</p>
+<div class="qgrid">${cards}</div></div>
 <div class="card"><h2 style="margin-top:0">Which is better?</h2>
-<p style="margin:0">Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but run slower and use more memory; small ones are quick but simpler. A good rule: <b>pick the biggest model that's still fast enough for you</b> - anything above reading speed feels fine for chat; for long documents, also look at how fast it reads a prompt.</p></div>`;
+<p style="margin:0">Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but run slower and fill more of the card; small ones are quick but simpler. A good rule: <b>pick the biggest model that's still fast enough for you</b> - anything above reading speed feels fine for chat; for long documents, also look at how fast it reads a prompt.</p></div>`;
 }
 function measuredPage(origin) {
   const rows = measuredFile.measured || [];
