@@ -143,12 +143,16 @@ def versions():
 
 
 def gen(model, prompt, ctx, predict):
-    body = {"model": model, "prompt": prompt, "stream": False, "keep_alive": "10m", "think": False,
+    body = {"model": model, "prompt": prompt, "stream": False, "keep_alive": "10m",
             "options": {"num_ctx": ctx, "num_predict": predict, "temperature": 0, "seed": 7}}
+    if THINKS.get(model):   # thinking off for models that think; others refuse the "think" field
+        body["think"] = False
     with GpuWatch() as w:
         t0 = time.time()
         r = requests.post(OLLAMA + "/api/generate", json=body, timeout=1800).json()
         wall = time.time() - t0
+    if r.get("error"):
+        return {"error": str(r["error"])[:160]}
     mem, power = w.result()
     ns = 1e9
     out = {"prompt_tokens": r.get("prompt_eval_count"), "gen_tokens": r.get("eval_count"),
@@ -166,9 +170,14 @@ def gen(model, prompt, ctx, predict):
     return out
 
 
+THINKS = {}
+
+
 def model_meta(model):
     try:
-        d = requests.post(OLLAMA + "/api/show", json={"model": model}, timeout=30).json().get("details", {})
+        j = requests.post(OLLAMA + "/api/show", json={"model": model}, timeout=30).json()
+        THINKS[model] = "thinking" in (j.get("capabilities") or [])
+        d = j.get("details", {})
         return {"quant": d.get("quantization_level"), "params": d.get("parameter_size"), "family": d.get("family")}
     except Exception:
         return {}
@@ -182,7 +191,7 @@ def done_recently(model, days=30):
             r = json.loads(line)
         except ValueError:
             continue
-        if r.get("model") == model and r.get("test") == "gen":
+        if r.get("model") == model and r.get("test") == "gen" and r.get("gen_tps"):
             return (time.time() - datetime.fromisoformat(r["date"]).timestamp()) < days * 86400
     return False
 
@@ -201,6 +210,9 @@ def measure(model, ver):
                 if should_stop(NOW):
                     return rows, True
                 r = gen(model, prompt, ctx, predict)
+                if r.get("error"):
+                    log(model, ctx, test, "failed:", r["error"])
+                    return rows, False
                 row = {"date": datetime.now().isoformat(timespec="seconds"), "gpu": "rtx-3090", "model": model, "ctx": ctx, "test": test,
                        "run": run + 1, "kv_cache": os.environ.get("OLLAMA_KV_CACHE_TYPE") or "q8_0 (system)", **meta, **ver, **r}
                 rows.append(row)

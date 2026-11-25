@@ -6,3 +6,4 @@ tools/
 npm_install.log
 bench/nightly.log
 bench/pulled.json
+_to_delete/

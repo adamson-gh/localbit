@@ -32,7 +32,7 @@ def main():
                     "tokens_per_joule": round(mid["gen_tps"] / mid["power_w"], 3) if mid.get("power_w") else None,
                     "runtime": "Ollama " + str(mid.get("ollama", "?")), "driver": mid.get("driver"), "runs": len(gens), "date": mid["date"][:10],
                     "source": "LocalBit test machine (RTX 3090, Windows) - middle of %d runs" % len(gens)})
-    OUT.write_text(json.dumps({"_about": "Measured on LocalBit's RTX 3090 overnight. License: CC BY 4.0 - credit LocalBit.",
+    OUT.write_text(json.dumps({"_about": "Measured on LocalBit's RTX 3090 (Windows, Ollama): middle of 3 runs per model and context, temperature 0, made-up prompts. gpu_mem_peak_gib is the whole card's peak use (the desktop adds about 0.5-1 GB). power_w is the card's average draw while generating. License: CC BY 4.0 - credit LocalBit.",
                                                            "measured": out}, indent=1), encoding="utf-8")
     print("PUBLISH rows", len(out), "models", len({o["model"] for o in out}))
 
