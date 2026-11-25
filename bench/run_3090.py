@@ -39,15 +39,16 @@ def cfg():
 
 
 def assistant_busy(minutes=10):
-    """The home assistant was used recently (a /chat or /voice in its access log) - the card is in use."""
+    """The home assistant was used recently by a person (a /chat or /voice from the phone - Tailscale, home Wi-Fi or outside -
+    in its access log) - the card is in use. Requests from the machine itself ("local": its own tests and nightly jobs) don't count."""
     try:
         tail = ASSISTANT_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()[-400:]
     except OSError:
         return False
     now = datetime.now()
     for line in reversed(tail):
-        m = re.match(r"(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) \S+\s+POST\s+/(chat|voice)\b", line)
-        if m:
+        m = re.match(r"(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) (\S+)\s+POST\s+/(chat|voice)\b", line)
+        if m and m[6] != "local":
             t = now.replace(month=int(m[1]), day=int(m[2]), hour=int(m[3]), minute=int(m[4]), second=int(m[5]))
             return (now - t).total_seconds() < minutes * 60
     return False

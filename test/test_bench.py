@@ -51,5 +51,15 @@ p = subprocess.run([sys.executable, str(bench / "publish.py")], env=penv, captur
 pub = json.loads((tmp / "measured.json").read_text())["measured"] if (tmp / "measured.json").exists() else []
 check("publish: one row per context, the middle of the runs", len(pub) == 3 and pub[0]["gen_tps"] == 64.0 and pub[0]["runs"] == 3, (pub[:1], p.stderr[-200:]))
 check("the real data files are untouched", not (ROOT / "data" / "runs_3090.jsonl").exists() or "made-up" not in (ROOT / "data" / "runs_3090.jsonl").read_text())
+# who counts as "in use": a person on the phone, not the machine's own scripts
+import importlib.util as _u
+from datetime import datetime as _dt
+os.environ["LOCALBIT_BUSY_LOG"] = str(tmp / "access.log")
+spec = _u.spec_from_file_location("rb", bench / "run_3090.py"); rb = _u.module_from_spec(spec); spec.loader.exec_module(rb)
+now = _dt.now().strftime("%m-%d %H:%M:%S")
+(tmp / "access.log").write_text(now + " local     POST /chat                     200 900ms\n", encoding="utf-8")
+check("the machine's own requests (local) don't stop the run", not rb.assistant_busy())
+(tmp / "access.log").write_text(now + " tailscale POST /voice                    200 900ms\n" + now + " local     POST /chat                     200 900ms\n", encoding="utf-8")
+check("a request from the phone does", rb.assistant_busy())
 srv.shutdown()
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)
