@@ -220,9 +220,11 @@ th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:fi
 .mk em{font-style:normal;font-weight:400;color:var(--mute);font-size:.7rem;white-space:nowrap}
 .mn{font-variant-numeric:tabular-nums;font-size:1rem;font-weight:700;text-align:right;white-space:nowrap}.mn small{font-size:.72rem;font-weight:500;color:var(--mute);margin-left:3px}
 .mb{display:block;height:8px;background:#efefeb;border-radius:4px;overflow:hidden}.mb i{display:block;height:100%;background:#c9cbd1}
-.mb.cy i{background:#f1dd8c}.mb.co i{background:#f5c39b}.mr.cy .ic{color:#c9a227}.mr.co .ic{color:#d9864a}
+.mb.cy i{background:#f4b326}.mb.ck i{background:#9782eb}.mb.cr i{background:#4dcdb4}.mb.cz i{background:#f79c6e}.mb.cb2 i{background:#66a4e9}
+.mr.cy .ic{color:#c98a00}.mr.ck .ic{color:#6a4ce2}.mr.cr .ic{color:#00957a}.mr.cz .ic{color:#d9561a}.mr.cb2 .ic{color:#257de0}
 .mx{color:var(--mute);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (prefers-color-scheme:dark){.mb{background:#26282c}.mb i{background:#5a5e66}.mb.cy i{background:#7a6a2e}.mb.co i{background:#7d5233}}
+@media (prefers-color-scheme:dark){.mb{background:#26282c}.mb i{background:#5a5e66}.mb.cy i{background:#ad770a}.mb.ck i{background:#7f72c5}.mb.cr i{background:#058c73}.mb.cz i{background:#be5723}.mb.cb2 i{background:#2e76c4}
+.mr.cy .ic{color:#e0a020}.mr.ck .ic{color:#a99cf2}.mr.cr .ic{color:#2fc4a5}.mr.cz .ic{color:#f08a52}.mr.cb2 .ic{color:#6aaaf3}}
 @media (max-width:640px){.mr{grid-template-columns:1fr auto;row-gap:2px}.mb{grid-column:1 / -1}.mx{grid-column:1 / -1;margin-bottom:4px}.mmeta{display:block;margin:0}}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
 .qrow{display:grid;grid-template-columns:26px 92px 1fr 104px;grid-template-areas:"i l b v" ". . x x";align-items:center;gap:2px 10px;margin:6px 0}
 .qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.ql{grid-area:l;font-size:.88rem;font-weight:600}.qrow .cb.qsb{background:#d08a00}.qrow .cb.qmb{background:var(--accent)}.qrow .cb.ql2b{background:#8a63d2}.qrow .cb.qrb{background:#13897a}.qrow .cb.qpb{background:#5c8a2e}.ql2{background:#efe8fb;color:#6b47b8}.qr{background:#e3f4f1;color:#0f7468}.qp{background:#ebf3e2;color:#4a7424}@media (prefers-color-scheme:dark){.ql2{background:#2a2140;color:#b49cf0}.qr{background:#13302c;color:#6fd3c4}.qp{background:#1f2b14;color:#a3d277}}@media (max-width:560px){.qrow{grid-template-columns:26px 1fr 96px;grid-template-areas:"i l v" "b b b" "x x x"}}
@@ -337,10 +339,10 @@ function charts(ids, byModel, name, origin) {
     const size = m.params_b ? `${m.params_b}B parameters` + (m.active_b && m.active_b < m.params_b ? `, ${m.active_b}B active` : "") : "";
     return `<section class="model" id="${esc(v.id)}"><h3><a href="${origin}/run/${esc(v.id)}/on/rtx-3090">${esc(name(v.id))}</a></h3><div class="mmeta">${esc(size)} · ${esc(v.r.quant || "")} · ${esc(v.r.ollama_tag || "")} · ${esc(v.r.date || "")}</div>
 ${row(ICON.speed, "Speed", "", v.speed.toFixed(0), "tokens/s", bar(v.speed, mx("speed"), "cy"), `300 words in about ${Math.max(1, Math.round(400 / v.speed))} s`, "cy")}
-${v.keep != null ? row(ICON.long, "Long chats", "", v.keep, "% kept", bar(v.keep, 100), `${v.s32.toFixed(0)} tokens/s at 32K vs ${v.s4.toFixed(0)} at 4K`) : ""}
-${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "s", bar(v.read, mx("read")), `wait for a 3,000-word document`) : ""}
-${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24), `${(24 - v.size).toFixed(1)} GB free`)}
-${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh"), "co"), `per 300-word answer · ${Math.round(v.r.power_w)} W`, "co") : ""}
+${v.keep != null ? row(ICON.long, "Long chats", "", v.keep, "% kept", bar(v.keep, 100, "ck"), `${v.s32.toFixed(0)} tokens/s at 32K vs ${v.s4.toFixed(0)} at 4K`, "cl") : ""}
+${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "seconds", bar(v.read, mx("read"), "cr"), `wait for a 3,000-word document`, "cr") : ""}
+${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24, "cz"), `${(24 - v.size).toFixed(1)} GB free`, "cz")}
+${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh"), "cb2"), `per 300-word answer · ${Math.round(v.r.power_w)} W`, "cb2") : ""}
 </section>`; }).join("");
   const nav = `<nav class="jump" aria-label="Models measured">${vals.map(v => `<a href="#${esc(v.id)}">${esc(name(v.id))}</a>`).join("")}</nav>`;
   return `${nav}<div class="models">${cards}</div>
