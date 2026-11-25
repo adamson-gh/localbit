@@ -12,5 +12,6 @@ $before = (git --no-optional-locks diff --quiet HEAD -- data/measured.json; $LAS
 if ($before -ne 0) {
   $env:CI = 'true'
   npx wrangler deploy *>> $log
+  if ($LASTEXITCODE -ne 0) { Start-Sleep 60; npx wrangler deploy *>> $log }   # (Nov 25) deploys failed now and then and worked on the next try
   "deploy exit $LASTEXITCODE" | Out-File $log -Append -Encoding utf8
 } else { "no new measurements - no deploy" | Out-File $log -Append -Encoding utf8 }
