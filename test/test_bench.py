@@ -39,7 +39,10 @@ def check(name, cond, got=""):
     ok, bad = (ok + 1, bad) if cond else (ok, bad + 1)
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  got: %r" % (got,)))
 rows = [json.loads(l) for l in (tmp / "runs.jsonl").read_text().splitlines()] if (tmp / "runs.jsonl").exists() else []
+qz = [x for x in rows if x["test"] == "quiz"]
+rows = [x for x in rows if x["test"] != "quiz"]
 check("it measured: 3 contexts, prompt and generation tests, 3 generation runs each", len([x for x in rows if x["test"] == "gen"]) == 9 and len(rows) == 9 + 3 + 2, (len(rows), r.stderr[-300:]))
+check("then the 60-question quality check: one row, right per group, missed ids, nothing else", len(qz) == 1 and qz[0]["n"] == 60 and set(qz[0]["by_cat"]) <= {"math", "instructions", "facts", "code"} and isinstance(qz[0]["missed"], list) and "response" not in qz[0], qz[:1])
 check("speeds worked out from Ollama's own timings", rows and rows[0].get("gen_tps") == 64.0 or any(x.get("gen_tps") == 64.0 for x in rows), rows[:1])
 check("only numbers and versions are recorded", all(set(x) <= {"date", "gpu", "model", "ctx", "test", "run", "kv_cache", "quant", "params", "family", "ollama", "driver", "prompt_tokens",
       "gen_tokens", "prompt_tps", "gen_tps", "first_token_s", "load_s", "wall_s", "gpu_mem_peak_mib", "power_w", "all_on_gpu", "loaded_gib"} for x in rows), rows[:1])
@@ -49,7 +52,7 @@ check("the assistant's model goes back on the card at the end, with its context 
 penv = dict(os.environ, LOCALBIT_RUNS=str(tmp / "runs.jsonl"), LOCALBIT_MEASURED=str(tmp / "measured.json"))
 p = subprocess.run([sys.executable, str(bench / "publish.py")], env=penv, capture_output=True, text=True, timeout=60)
 pub = json.loads((tmp / "measured.json").read_text())["measured"] if (tmp / "measured.json").exists() else []
-check("publish: one row per context, the middle of the runs", len(pub) == 3 and pub[0]["gen_tps"] == 64.0 and pub[0]["runs"] == 3, (pub[:1], p.stderr[-200:]))
+check("publish: one row per context, the middle of the runs, with the quality score", len(pub) == 3 and pub[0]["gen_tps"] == 64.0 and pub[0]["runs"] == 3 and pub[0].get("quality_n") == 60, (pub[:1], p.stderr[-200:]))
 check("the real data files are untouched", not (ROOT / "data" / "runs_3090.jsonl").exists() or "made-up" not in (ROOT / "data" / "runs_3090.jsonl").read_text())
 # who counts as "in use": a person on the phone, not the machine's own scripts
 import importlib.util as _u
@@ -61,5 +64,10 @@ now = _dt.now().strftime("%m-%d %H:%M:%S")
 check("the machine's own requests (local) don't stop the run", not rb.assistant_busy())
 (tmp / "access.log").write_text(now + " tailscale POST /voice                    200 900ms\n" + now + " local     POST /chat                     200 900ms\n", encoding="utf-8")
 check("a request from the phone does", rb.assistant_busy())
+sys.path.insert(0, str(bench)); import quiz as QZ
+check("the quiz: 60 questions, 15 per group", len(QZ.Q) == 60 and all(sum(1 for q in QZ.Q if q["cat"] == c) == 15 for c in ("math", "instructions", "facts", "code")))
+ix = {q["id"]: q for q in QZ.Q}
+check("grading: right answers pass, wrong ones fail", QZ.grade(ix["m01"], "The change is $29.") and not QZ.grade(ix["m01"], "31") and QZ.grade(ix["f07"], "CO2")
+      and QZ.grade(ix["i04"], '```json\n{"name": "x", "age": 1}\n```') and not QZ.grade(ix["i02"], "Yes") and QZ.grade(ix["c13"], "a-b-c"))
 srv.shutdown()
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)

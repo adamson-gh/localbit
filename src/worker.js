@@ -185,24 +185,24 @@ function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*" } });
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const CSS = `:root{--bg:#f7f7f5;--card:#fff;--ink:#1b1c1e;--mute:#62656b;--line:#e3e3df;--accent:#2457d6;--ok:#13795b;--okbg:#e6f4ee;--warn:#9a6200;--warnbg:#fdf1dc;--bad:#b3261e;--badbg:#fbe7e5;--code:#f0f0ec}
+const CSS = `:root{--bg:#fff;--card:#fff;--ink:#1b1c1e;--mute:#62656b;--line:#e3e3df;--accent:#2457d6;--ok:#13795b;--okbg:#e6f4ee;--warn:#9a6200;--warnbg:#fdf1dc;--bad:#b3261e;--badbg:#fbe7e5;--code:#f0f0ec}
 @media (prefers-color-scheme:dark){:root{--bg:#121315;--card:#1b1c1f;--ink:#ececec;--mute:#9b9ea4;--line:#2c2e33;--accent:#7aa2ff;--ok:#5fd3a5;--okbg:#14302a;--warn:#f3be5d;--warnbg:#33290f;--bad:#ff8a80;--badbg:#3a1a18;--code:#24262a}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
-header{border-bottom:1px solid var(--line);background:var(--card)}header .in,main,footer .in{max-width:880px;margin:0 auto;padding:0 20px}
+header{border-bottom:1px solid var(--line);background:var(--bg)}header .in,main,footer .in{max-width:880px;margin:0 auto;padding:0 20px}
 header .in{display:flex;align-items:center;justify-content:space-between;height:58px;gap:16px}
 .logo{font-weight:750;font-size:1.15rem;letter-spacing:-.01em;color:var(--ink)}.logo b{color:var(--accent)}
 nav a{color:var(--mute);margin-left:18px;font-size:.95rem}nav a:hover{color:var(--ink)}
 main{padding:34px 20px 20px}h1{font-size:1.9rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}h2{font-size:1.15rem;margin:34px 0 10px}
 .lede{color:var(--mute);font-size:1.08rem;max-width:640px;margin:0 0 24px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:16px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:16px 0}
 .ask{display:flex;gap:10px;flex-wrap:wrap}.ask input{flex:1 1 200px;font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
 button,.btn{font:inherit;font-weight:600;padding:11px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
 .hint{color:var(--mute);font-size:.88rem;margin-top:10px}
 .verdict{display:inline-block;font-weight:700;padding:6px 12px;border-radius:999px;font-size:.95rem}
 .v-fits{background:var(--okbg);color:var(--ok)}.v-tight{background:var(--warnbg);color:var(--warn)}.v-does_not_fit{background:var(--badbg);color:var(--bad)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0 6px}
-.stat{background:var(--bg);border-radius:10px;padding:12px 14px}.stat .k{color:var(--mute);font-size:.82rem}.stat .v{font-size:1.35rem;font-weight:700}.stat .s{color:var(--mute);font-size:.82rem}
+.stat{background:#f6f6f4;border-radius:8px;padding:12px 14px}.stat .k{color:var(--mute);font-size:.82rem}.stat .v{font-size:1.35rem;font-weight:700}.stat .s{color:var(--mute);font-size:.82rem}
 .bar{height:10px;border-radius:6px;background:var(--line);overflow:hidden;display:flex;margin:6px 0 4px}.bar i{display:block;height:100%}
 .tag{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--code);color:var(--mute);margin-left:6px;vertical-align:middle}
 .tag.m{background:var(--okbg);color:var(--ok)}
@@ -219,7 +219,7 @@ th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:fi
 .mr:first-of-type{margin-top:6px}.mk{display:flex;align-items:center;gap:7px;font-weight:600}.mk .ic{width:13px;height:13px;color:var(--mute);flex:none}
 .mk em{font-style:normal;font-weight:400;color:var(--mute);font-size:.7rem;white-space:nowrap}
 .mn{font-variant-numeric:tabular-nums;font-size:1rem;font-weight:700;text-align:right;white-space:nowrap}.mn small{font-size:.72rem;font-weight:500;color:var(--mute);margin-left:3px}
-.mb{display:block;height:8px;background:#efefeb;border-radius:4px;overflow:hidden}.mb i{display:block;height:100%;background:#c9cbd1}
+.mb{display:block;height:8px;background:#f0f0ee;border-radius:4px;overflow:hidden}.mb i{display:block;height:100%;background:#c9cbd1}
 .mb.cy i{background:#f4b326}.mb.ck i{background:#9782eb}.mb.cr i{background:#4dcdb4}.mb.cz i{background:#f79c6e}.mb.cb2 i{background:#66a4e9}
 .mr.cy .ic{color:#c98a00}.mr.ck .ic{color:#6a4ce2}.mr.cr .ic{color:#00957a}.mr.cz .ic{color:#d9561a}.mr.cb2 .ic{color:#257de0}
 .mx{color:var(--mute);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -245,9 +245,9 @@ function page(title, body, origin, desc) {
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc || "Will this AI model run on my hardware? Memory needed and speed, estimated or measured.")}">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232457d6'/%3E%3Cpath d='M9 8v16h14' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>${CSS}</style></head><body>
-<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Measured</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
+<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
-<footer><div class="in"><span>LocalBit ${VERSION}</span><span>${esc(asOfText())}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="https://github.com/adamson-gh/localbit">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
+<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="https://github.com/adamson-gh/localbit">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
 </body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 function askBox(origin, model = "", hw = "") {
@@ -257,17 +257,17 @@ function askBox(origin, model = "", hw = "") {
 function home(origin) {
   const nMeas = new Set((measuredFile.measured || []).map(r => r.model)).size;
   return page("LocalBit - will this AI model run on my hardware?", `<h1>Will this AI model run on my hardware?</h1>
-<p class="lede">How much memory a local model needs and how fast it will answer on your graphics card or Mac - estimated from the model's design and the card's specs, and <b>measured</b> on real hardware where results exist.</p>
+<p class="lede">Memory, speed and a verdict for any local model on your graphics card or Mac. Estimated from published specs. Measured where the node has run it.</p>
 <div class="card">${askBox(origin)}<div class="hint">Try: <a href="${origin}/check?model=llama%203.1%208b&hardware=rtx%204060">Llama 3.1 8B on an RTX 4060</a> · <a href="${origin}/check?model=qwen3%2030b&hardware=rtx%204090">Qwen3 30B on an RTX 4090</a> · <a href="${origin}/check?model=llama%203.3%2070b&hardware=rtx%203090">Llama 3.3 70B on an RTX 3090</a></div></div>
 <div class="grid3" style="margin-top:22px">
-<div class="card"><h3>Measured, not guessed</h3><p>${nMeas} model${nMeas === 1 ? "" : "s"} timed on LocalBit's own RTX 3090, more every night. <a href="${origin}/measured">See the table</a>.</p></div>
-<div class="card"><h3>Every answer says how it knows</h3><p>Estimated or measured, and the date the data is current as of.</p></div>
-<div class="card"><h3>Open data</h3><p>Measurements and tables under CC BY 4.0, scripts on <a href="https://github.com/adamson-gh/localbit">GitHub</a>.</p></div></div>
+<div class="card"><h3>Live node</h3><p>An RTX 3090 in the field, testing models every night. ${nMeas} logged so far. <a href="${origin}/measured">Latest tested</a>.</p></div>
+<div class="card"><h3>Labeled readings</h3><p>Every answer says estimated or measured, and when it was last read.</p></div>
+<div class="card"><h3>Open data</h3><p>Readings and tables under CC BY 4.0. Scripts on <a href="https://github.com/adamson-gh/localbit">GitHub</a>.</p></div></div>
 <h2 id="agents">For AI agents</h2>
 <div class="card"><p style="margin-top:0"><b>MCP server</b> (Streamable HTTP, no key): <code>${origin}/mcp</code><br><span class="small">Listed in the MCP Registry as <code>io.github.adamson-gh/localbit</code></span></p>
 <p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>list_known</code> · <code>report_issue</code></p>
 <p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a></p></div>
-<h2>What LocalBit records</h2><p class="small">Which tool was called, the model and hardware named, and the calling app's self-reported name - to learn what people and agents ask about. No IP addresses, accounts or personal data. <a href="${origin}/about">Who runs it, privacy, data license.</a></p>`, origin,
+<h2>What the node logs</h2><p class="small">The tool called, the model and hardware asked about, and the calling app's self-reported name. No IP addresses, accounts or personal data. <a href="${origin}/about">Who runs it, privacy, data license.</a></p>`, origin,
   "Will an AI model run on your GPU or Mac? Memory needed and tokens per second - estimated, and measured on a real RTX 3090.");
 }
 function resultCard(out) {
@@ -291,9 +291,9 @@ function checkPage(sp, origin) {
 }
 function about(origin) {
   return page("About LocalBit - who runs it, privacy, data license", `<h1>About LocalBit</h1>
-<p class="lede">A small, independent service that answers one question well: will this AI model run on this hardware?</p>
-<h2>Who runs it</h2><p>LocalBit is an independent project by <a href="${OWNER.url}">${OWNER.name}</a> on GitHub. It isn't connected with NVIDIA, AMD, Intel, Apple, Ollama or any model maker.</p>
-<h2>How good the answers are</h2><p>Most answers are <b>estimates</b> from each model's design and each card's published specs. Speeds marked <b>measured</b> come from LocalBit's own RTX 3090 test machine (Windows, Ollama), re-run regularly. Laptop versions of cards are slower than desktop ones, and two-card or CPU-only setups aren't modeled yet. Check before you buy hardware on the strength of an estimate. Every answer says how current its data is.</p>
+<p class="lede">One question, answered well: will this AI model run on this hardware?</p>
+<h2>Operator</h2><p>LocalBit is an independent project by <a href="${OWNER.url}">${OWNER.name}</a> on GitHub. It isn't connected with NVIDIA, AMD, Intel, Apple, Ollama or any model maker.</p>
+<h2>How far to trust a reading</h2><p>Most answers are <b>estimates</b> from each model's design and each card's published specs. Speeds marked <b>measured</b> come from LocalBit's own RTX 3090 test machine (Windows, Ollama), re-run regularly. Laptop versions of cards are slower than desktop ones, and two-card or CPU-only setups aren't modeled yet. Check before you buy hardware on the strength of an estimate. Every answer says how current its data is.</p>
 <h2>Something wrong?</h2><p>Agents can call the <code>report_issue</code> tool; people can use the form on any result page, or <code>POST ${origin}/api/report</code> with JSON. Real results (tokens/s, memory used, runtime) help most.</p>
 <h2>Privacy</h2><ul><li>Recorded: the time, which tool or page, the model and hardware asked about, the answer's verdict, and the calling app's self-reported name.</li>
 <li>Not recorded: IP addresses, accounts, cookies or anything that identifies a person. Cloudflare's rate limiter looks at the address for a moment to stop abuse; LocalBit never stores it.</li>
@@ -318,6 +318,7 @@ const ICON = {
 // (Nov 25, David: "put each model's results together ... other metrics we found important") one card per measured model with
 // everything about it: speed, staying fast in long chats, reading a document, size on the card, energy - each with its icon
 ICON.read = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12h8M9 16h8M9 8h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+ICON.quality = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 ICON.long = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 10h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 ICON.power = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function charts(ids, byModel, name, origin) {
@@ -328,7 +329,7 @@ function charts(ids, byModel, name, origin) {
   const vals = ids.map(id => { const r = pick(id), s4 = at(id, 4096), s32 = at(id, 32768);
     return { id, r, speed: +r.gen_tps, keep: s4 && s32 ? Math.min(100, Math.round(100 * s32 / s4)) : null, s4, s32,
              read: r.prompt_tps_4k ? 4000 / r.prompt_tps_4k : null, size: +r.gpu_mem_peak_gib || 0,
-             wh: r.power_w && r.gen_tps ? r.power_w * 400 / r.gen_tps / 3600 : null }; });
+             wh: r.power_w && r.gen_tps ? r.power_w * 400 / r.gen_tps / 3600 : null, q: r.quality_pct != null ? r.quality_pct : null, qc: r.quality_by_cat }; });
   const mx = k => Math.max(...vals.map(v => v[k] || 0), 1e-9);
   // (Nov 25, David: "speed = yellow, energy = orange, very light ... more compact") one line per measure; the sentence is the tooltip
   const bar = (v, of, c = "") => `<span class="mb ${c}"><i style="width:${Math.max(1.5, Math.min(100, 100 * v / of)).toFixed(1)}%"></i></span>`;
@@ -339,21 +340,21 @@ function charts(ids, byModel, name, origin) {
     const size = m.params_b ? `${m.params_b}B parameters` + (m.active_b && m.active_b < m.params_b ? `, ${m.active_b}B active` : "") : "";
     return `<section class="model" id="${esc(v.id)}"><h3><a href="${origin}/run/${esc(v.id)}/on/rtx-3090">${esc(name(v.id))}</a></h3><div class="mmeta">${esc(size)} · ${esc(v.r.quant || "")} · ${esc(v.r.ollama_tag || "")} · ${esc(v.r.date || "")}</div>
 ${row(ICON.speed, "Speed", "", v.speed.toFixed(0), "tokens/s", bar(v.speed, mx("speed"), "cy"), `300 words in about ${Math.max(1, Math.round(400 / v.speed))} s`, "cy")}
-${v.keep != null ? row(ICON.long, "Long chats", "", v.keep, "% kept", bar(v.keep, 100, "ck"), `${v.s32.toFixed(0)} tokens/s at 32K vs ${v.s4.toFixed(0)} at 4K`, "cl") : ""}
+${v.q != null ? row(ICON.quality, "Quality", "", v.q, "% right", bar(v.q, 100, "ck"), ["math", "instructions", "facts", "code"].map(c => `${c} ${(v.qc || {})[c] || 0}/15`).join(" · "), "ck") : row(ICON.quality, "Quality", "", "-", "", bar(0, 100, "ck"), "not checked yet", "ck")}
 ${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "seconds", bar(v.read, mx("read"), "cr"), `wait for a 3,000-word document`, "cr") : ""}
 ${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24, "cz"), `${(24 - v.size).toFixed(1)} GB free`, "cz")}
 ${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh"), "cb2"), `per 300-word answer · ${Math.round(v.r.power_w)} W`, "cb2") : ""}
 </section>`; }).join("");
   const nav = `<nav class="jump" aria-label="Models measured">${vals.map(v => `<a href="#${esc(v.id)}">${esc(name(v.id))}</a>`).join("")}</nav>`;
   return `${nav}<div class="models">${cards}</div>
-<h2>Reading these</h2>
-<dl class="defs"><dt>Speed</dt><dd>How fast words come out once it has started. People read about 8 tokens a second, so anything well above that keeps ahead of you.</dd>
-<dt>Long chats</dt><dd>Models carry the whole conversation along; the longer it gets, the more there is to look through for each new word. This is how much of its short-chat speed it keeps when the conversation reaches about 24,000 words (32K tokens).</dd>
-<dt>Reading</dt><dd>Before answering, a model reads everything you gave it - a pasted document, a long question, the chat so far. This is the wait for a 4,000-token (about 3,000-word) document before the first word appears.</dd>
-<dt>Size</dt><dd>How much of the card's 24 GB memory it takes while running, including about 0.5-1 GB the desktop uses.</dd>
-<dt>Energy</dt><dd>Electricity the card uses to write a 300-word answer. Every bar shows the number beside it, compared with the other models here; Size is compared with the full card.</dd></dl>
-<h2>Which is better?</h2>
-<p>Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but are slower and take more of the card. A good rule: pick the biggest model that is still fast enough for you - and if you work with long documents, check Reading.</p>`;
+<h2>Readings</h2>
+<dl class="defs"><dt>Speed</dt><dd>Words per second once it starts writing, in tokens. People read about 8; anything well above keeps ahead of you.</dd>
+<dt>Quality</dt><dd>Share of 60 questions answered right - 15 each of math, following instructions, facts and reading code. Written for LocalBit, graded by a script, no AI judge. Thinking off. A quick check, not a full benchmark: it separates small models from big ones, not near neighbours.</dd>
+<dt>Reading</dt><dd>Wait before the first word when handed a 4,000-token (about 3,000-word) document. A model reads everything it is given before answering.</dd>
+<dt>Size</dt><dd>Card memory in use while running, including about 0.5-1 GB for the desktop.</dd>
+<dt>Energy</dt><dd>Electricity to write a 300-word answer. Each bar is the number beside it, against the other models here; Size is against the full card.</dd></dl>
+<h2>Choosing</h2>
+<p>Quality against speed. Bigger models score higher and run slower. Pick the highest Quality that is still fast enough for you; for long documents, check Reading.</p>`;
 }
 function measuredPage(origin) {
   const rows = measuredFile.measured || [];
@@ -366,16 +367,18 @@ function measuredPage(origin) {
   const body = ids.map(id => { const rs = byModel[id]; const mid = rs.find(x => x.context === 16384) || rs[0];
     return `<tr><td><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a><br><small>${esc(mid.ollama_tag || "")} · ${esc(mid.quant || "")}</small></td>` +
       `<td>${f(at(rs, 4096, "gen_tps"), 1)}</td><td>${f(at(rs, 16384, "gen_tps"), 1)}</td><td>${f(at(rs, 32768, "gen_tps"), 1)}</td>` +
-      `<td>${f(at(rs, 16384, "prompt_tps_4k"))}</td><td>${f(mid.gpu_mem_peak_gib, 1)}</td><td>${f(mid.power_w)}</td><td>${f(mid.tokens_per_joule, 2)}</td><td>${esc(mid.date || "")}</td></tr>`; }).join("");
+      `<td>${f(mid.quality_pct)}</td><td>${f(at(rs, 16384, "prompt_tps_4k"))}</td><td>${f(mid.gpu_mem_peak_gib, 1)}</td><td>${f(mid.power_w)}</td><td>${f(mid.tokens_per_joule, 2)}</td><td>${esc(mid.date || "")}</td></tr>`; }).join("");
   const any = rows[0] || {};
-  return page("Measured: local AI models on an RTX 3090 - LocalBit", `<h1>Measured on an RTX 3090</h1>
-<p class="lede">Real runs on LocalBit's own RTX 3090, not estimates. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
+  const last = rows.map(r => r.date || "").sort().pop() || "";
+  return page("Latest Models Tested - LocalBit", `<h1>Latest Models Tested</h1>
+<p class="lede" style="margin-bottom:6px">A live in-field node.</p>
+<p class="small" style="margin:0 0 20px">RTX 3090 · 24 GB · ${esc(any.runtime || "Ollama")} · ${ids.length} model${ids.length === 1 ? "" : "s"} logged · last run ${esc(last)} · runs nightly</p>
 ${ids.length ? charts(ids, byModel, name, origin) : ""}
 ${ids.length ? `<details class="card"><summary>All the numbers as a table</summary><div class="scroll"><table class="meas">
-<thead><tr><th rowspan="2">Model</th><th colspan="3" style="text-align:center">Tokens/s by context</th><th rowspan="2">Prompt<br>tokens/s</th><th rowspan="2">Memory<br>GB</th><th rowspan="2">Power<br>W</th><th rowspan="2">Tokens<br>per joule</th><th rowspan="2">Date</th></tr><tr><th>4K</th><th>16K</th><th>32K</th></tr></thead>
+<thead><tr><th rowspan="2">Model</th><th colspan="3" style="text-align:center">Tokens/s by context</th><th rowspan="2">Quality<br>% right</th><th rowspan="2">Prompt<br>tokens/s</th><th rowspan="2">Memory<br>GB</th><th rowspan="2">Power<br>W</th><th rowspan="2">Tokens<br>per joule</th><th rowspan="2">Date</th></tr><tr><th>4K</th><th>16K</th><th>32K</th></tr></thead>
 <tbody>${body}</tbody></table><div class="meas-note">Prompt = reading a 4,000-token prompt at 16K context. Memory = the whole card's peak at 16K. Power = the card's average while generating.</div></div></details>` : "<p>No results yet.</p>"}
-<h2>How it's measured</h2><p>Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
-<h2>Use the data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
+<h2>Method</h2><p>Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
+<h2>Data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
 }
 function pairPage(mid, gid, origin) {
   const m = DATA.models.find(x => x.id === mid), g = DATA.gpus.find(x => x.id === gid);

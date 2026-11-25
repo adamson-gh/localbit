@@ -183,7 +183,8 @@ def model_meta(model):
         return {}
 
 
-def done_recently(model, days=30):
+def done_recently(model, days=30, test="gen"):
+    """A real result for this model (speed: test "gen"; quality: test "quiz") in the last `days` days."""
     if not RUNS.exists():
         return False
     for line in RUNS.read_text(encoding="utf-8").splitlines()[::-1]:
@@ -191,9 +192,44 @@ def done_recently(model, days=30):
             r = json.loads(line)
         except ValueError:
             continue
-        if r.get("model") == model and r.get("test") == "gen" and r.get("gen_tps"):
+        if r.get("model") == model and r.get("test") == test and (r.get("gen_tps") if test == "gen" else r.get("n")):
             return (time.time() - datetime.fromisoformat(r["date"]).timestamp()) < days * 86400
     return False
+
+
+def quiz(model, ver):
+    """(Nov 25, David: "is quality not something we can measure? ... Yes, swap") the 60-question check (bench/quiz.py), 4K context,
+    temperature 0, thinking off. One row: right per group, the ids missed. Returns (row or None, stopped)."""
+    sys.path.insert(0, str(HERE))
+    import quiz as QZ
+    meta = model_meta(model)
+    unload_all()
+    got, missed = {}, []
+    t0 = time.time()
+    for q in QZ.Q:
+        if should_stop(NOW):
+            return None, True
+        body = {"model": model, "prompt": q["prompt"], "stream": False, "keep_alive": "10m",
+                "options": {"num_ctx": 4096, "num_predict": 200, "temperature": 0, "seed": 7}}
+        if THINKS.get(model):
+            body["think"] = False
+        try:
+            r = requests.post(OLLAMA + "/api/generate", json=body, timeout=600).json()
+        except Exception as e:
+            log(model, "quiz", q["id"], "failed:", type(e).__name__); return None, False
+        if r.get("error"):
+            log(model, "quiz failed:", str(r["error"])[:120]); return None, False
+        ok = QZ.grade(q, r.get("response", ""))
+        got[q["cat"]] = got.get(q["cat"], 0) + (1 if ok else 0)
+        if not ok:
+            missed.append(q["id"])
+    n = len(QZ.Q)
+    row = {"date": datetime.now().isoformat(timespec="seconds"), "gpu": "rtx-3090", "model": model, "test": "quiz", "n": n,
+           "right": n - len(missed), "by_cat": got, "missed": missed, "quiz_version": 1, "secs": round(time.time() - t0), **meta, **ver}
+    with open(RUNS, "a", encoding="utf-8") as f:
+        f.write(json.dumps(row) + "\n")
+    log(model, "quiz", row["right"], "/", n, got)
+    return row, False
 
 
 def measure(model, ver):
@@ -228,7 +264,7 @@ NOW = "--now" in sys.argv
 def main():
     maxm = int(sys.argv[sys.argv.index("--max-models") + 1]) if "--max-models" in sys.argv else 3
     approved = [l.strip() for l in (HERE / "approved.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
-    todo = [m for m in approved if not done_recently(m)][:maxm]
+    todo = [m for m in approved if not (done_recently(m) and done_recently(m, test="quiz"))][:maxm]
     if not todo:
         log("nothing to measure"); return
     if should_stop(NOW):
@@ -240,9 +276,14 @@ def main():
                 continue
             if should_stop(NOW):
                 break
-            _, stopped = measure(m, ver)
-            if stopped:
-                break
+            if not done_recently(m):
+                _, stopped = measure(m, ver)
+                if stopped:
+                    break
+            if not done_recently(m, test="quiz"):
+                _, stopped = quiz(m, ver)
+                if stopped:
+                    break
             if cfg().get("remove_after") and m in (json.loads(PULLED.read_text(encoding="utf-8")) if PULLED.exists() else []):
                 subprocess.run(["ollama", "rm", m], capture_output=True, timeout=300)
                 log("removed", m, "(downloaded for the test)")
