@@ -212,9 +212,9 @@ ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
 code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
 table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
-.scroll{overflow-x:auto}.qgrid{display:grid;gap:14px}.qref{background:var(--bg);border-radius:12px;padding:12px 14px}.qn{font-weight:650;margin-bottom:6px}
-.qrow{display:grid;grid-template-columns:26px 1fr 96px;grid-template-areas:"i b v" ". x x";align-items:center;gap:2px 10px;margin:6px 0}
-.qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.qrow .cb.cbs{background:#d08a00}.qrow .cb.cbm{background:var(--accent)}
+.scroll{overflow-x:auto}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
+.qrow{display:grid;grid-template-columns:26px 92px 1fr 104px;grid-template-areas:"i l b v" ". . x x";align-items:center;gap:2px 10px;margin:6px 0}
+.qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.ql{grid-area:l;font-size:.88rem;font-weight:600}.qrow .cb.qsb{background:#d08a00}.qrow .cb.qmb{background:var(--accent)}.qrow .cb.ql2b{background:#8a63d2}.qrow .cb.qrb{background:#13897a}.qrow .cb.qpb{background:#5c8a2e}.ql2{background:#efe8fb;color:#6b47b8}.qr{background:#e3f4f1;color:#0f7468}.qp{background:#ebf3e2;color:#4a7424}@media (prefers-color-scheme:dark){.ql2{background:#2a2140;color:#b49cf0}.qr{background:#13302c;color:#6fd3c4}.qp{background:#1f2b14;color:#a3d277}}@media (max-width:560px){.qrow{grid-template-columns:26px 1fr 96px;grid-template-areas:"i l v" "b b b" "x x x"}}
 .qv{grid-area:v;font-weight:700;font-size:.9rem;text-align:right;white-space:nowrap}.qx{grid-area:x;color:var(--mute);font-size:.8rem}
 .qi{grid-area:i;display:inline-flex;width:24px;height:24px;border-radius:7px;align-items:center;justify-content:center;vertical-align:middle}
 .qs{background:var(--warnbg);color:var(--warn)}.qm{background:var(--code);color:var(--accent)}.ic{width:15px;height:15px}
@@ -302,23 +302,35 @@ const ICON = {
   speed: `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" fill="currentColor"/></svg>`,
   size: `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
 };
-// (Nov 25, David: "include little icons, one for speed, another for size ... a quick reference for the model") one card per model:
-// a speed bar and a card-memory bar, each with its icon; the same icons label the result cards
+// (Nov 25, David: "put each model's results together ... other metrics we found important") one card per measured model with
+// everything about it: speed, staying fast in long chats, reading a document, size on the card, energy - each with its icon
+ICON.read = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12h8M9 16h8M9 8h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+ICON.long = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 10h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+ICON.power = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function charts(ids, byModel, name, origin) {
   const pick = id => byModel[id].find(x => x.context === 16384) || byModel[id][0];
-  const maxT = Math.max(...ids.map(id => pick(id).gen_tps || 0), 10);
+  const at = (id, ctx) => (byModel[id].find(x => x.context === ctx) || {}).gen_tps;
+  const max = k => Math.max(...ids.map(id => +pick(id)[k] || 0), 1e-9);
   const READ = 8;
-  const secs = tps => Math.max(1, Math.round(400 / tps));   // a ~300-word answer is ~400 tokens
+  const secs = tps => Math.max(1, Math.round(400 / tps));
   const feel = tps => tps >= 60 ? "instant" : tps >= 25 ? "fast" : tps >= READ ? "comfortable" : "slow";
-  const cards = ids.map(id => { const r = pick(id), used = r.gpu_mem_peak_gib || 0;
-    return `<div class="qref"><div class="qn"><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a><span class="small"> ${esc(r.quant || "")}</span></div>
-<div class="qrow" title="Speed: ${r.gen_tps} tokens/s at 16K context"><span class="qi qs">${ICON.speed}</span><div class="ct"><div class="cb cbs" style="width:${(100 * r.gen_tps / maxT).toFixed(1)}%"></div></div><span class="qv">${(+r.gen_tps).toFixed(0)} tokens/s</span><span class="qx">${feel(r.gen_tps)} · 300 words in ~${secs(r.gen_tps)} s</span></div>
-<div class="qrow" title="Size: ${used} GB of the card's 24 GB at 16K context"><span class="qi qm">${ICON.size}</span><div class="ct"><div class="cb cbm" style="width:${(100 * used / 24).toFixed(1)}%"></div></div><span class="qv">${used.toFixed(1)} / 24 GB</span><span class="qx">${(24 - used).toFixed(1)} GB free${24 - used >= 8 ? " · room for a 2nd model" : 24 - used >= 3 ? " · room for longer chats" : " · nearly full"}</span></div></div>`; }).join("");
-  return `<div class="card"><h2 style="margin-top:0">Quick reference</h2>
-<p class="small" style="margin-top:0"><span class="qi qs">${ICON.speed}</span> <b>Speed</b> - how fast words appear once it starts (people read about ${READ} tokens a second; longer bar = faster) &nbsp; <span class="qi qm">${ICON.size}</span> <b>Size</b> - how much of the 24 GB card it fills (shorter bar = more room left)</p>
-<div class="qgrid">${cards}</div></div>
+  const row = (cls, icon, label, pct, value, note, title) => `<div class="qrow" title="${esc(title)}"><span class="qi ${cls}">${icon}</span>
+<div class="ql">${label}</div><div class="ct"><div class="cb ${cls}b" style="width:${Math.max(2, Math.min(100, pct)).toFixed(1)}%"></div></div><span class="qv">${value}</span><span class="qx">${note}</span></div>`;
+  const cards = ids.map(id => { const r = pick(id), used = r.gpu_mem_peak_gib || 0, m = DATA.models.find(x => x.id === id) || {};
+    const s4 = at(id, 4096), s32 = at(id, 32768), keep = s4 && s32 ? s32 / s4 : null;
+    const doc = r.prompt_tps_4k ? Math.max(0.1, 4000 / r.prompt_tps_4k) : null;
+    const size = m.params_b ? `${m.params_b}B` + (m.active_b && m.active_b < m.params_b ? ` (${m.active_b}B active)` : "") : "";
+    return `<div class="qref"><div class="qn"><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a><span class="small"> ${esc(size)} · ${esc(r.quant || "")} · measured ${esc(r.date || "")}</span></div>
+${row("qs", ICON.speed, "Speed", 100 * r.gen_tps / max("gen_tps"), `${(+r.gen_tps).toFixed(0)} tokens/s`, `${feel(r.gen_tps)} · a 300-word answer in ~${secs(r.gen_tps)} s`, `${r.gen_tps} tokens/s at 16K context`)}
+${keep ? row("ql2", ICON.long, "Long chats", 100 * keep, keep >= 0.9 ? "stays fast" : `${Math.round(100 * keep)}% speed`, `${(+s4).toFixed(0)} → ${(+s32).toFixed(0)} tokens/s from a short chat (4K) to a long one (32K)`, "speed at 4K, 16K and 32K context") : ""}
+${doc ? row("qr", ICON.read, "Reading", 100 * r.prompt_tps_4k / max("prompt_tps_4k"), `${doc < 10 ? doc.toFixed(1) : Math.round(doc)} s`, `to read a 4,000-token document (about 3,000 words) before answering`, `${r.prompt_tps_4k} tokens/s reading a 4,000-token prompt`) : ""}
+${row("qm", ICON.size, "Size", 100 * used / 24, `${used.toFixed(1)} / 24 GB`, `${(24 - used).toFixed(1)} GB free${24 - used >= 8 ? " · room for a second model" : 24 - used >= 3 ? " · room for longer chats" : " · nearly full"}`, `${used} GB of the card's 24 GB at 16K context`)}
+${r.tokens_per_joule ? row("qp", ICON.power, "Energy", 100 * r.tokens_per_joule / max("tokens_per_joule"), `${(r.power_w * 400 / r.gen_tps / 3600).toFixed(2)} Wh`, `energy per 300-word answer · ${Math.round(r.power_w)} W while generating, ${r.tokens_per_joule} tokens per joule`, `${r.power_w} W average while generating`) : ""}
+</div>`; }).join("");
+  return `<p class="small"><span class="qi qs">${ICON.speed}</span> Speed &nbsp;<span class="qi ql2">${ICON.long}</span> Long chats &nbsp;<span class="qi qr">${ICON.read}</span> Reading a document &nbsp;<span class="qi qm">${ICON.size}</span> Size on the card &nbsp;<span class="qi qp">${ICON.power}</span> Energy - longer bars are better, except Size (shorter leaves more room).</p>
+<div class="qgrid">${cards}</div>
 <div class="card"><h2 style="margin-top:0">Which is better?</h2>
-<p style="margin:0">Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but run slower and fill more of the card; small ones are quick but simpler. A good rule: <b>pick the biggest model that's still fast enough for you</b> - anything above reading speed feels fine for chat; for long documents, also look at how fast it reads a prompt.</p></div>`;
+<p style="margin:0">Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but run slower and fill more of the card; small ones are quick but simpler. A good rule: <b>pick the biggest model that's still fast enough for you</b> - anything above reading speed (about ${READ} tokens a second) feels fine for chat; if you work with long documents, look at Reading too.</p></div>`;
 }
 function measuredPage(origin) {
   const rows = measuredFile.measured || [];
@@ -336,9 +348,9 @@ function measuredPage(origin) {
   return page("Measured: local AI models on an RTX 3090 - LocalBit", `<h1>Measured on an RTX 3090</h1>
 <p class="lede">Real runs on LocalBit's own test machine - not estimates. Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
 ${ids.length ? charts(ids, byModel, name, origin) : ""}
-${ids.length ? `<h2>All the numbers</h2><div class="card scroll"><table class="meas">
+${ids.length ? `<details class="card"><summary>All the numbers as a table</summary><div class="scroll"><table class="meas">
 <thead><tr><th rowspan="2">Model</th><th colspan="3" style="text-align:center">Tokens/s by context</th><th rowspan="2">Prompt<br>tokens/s</th><th rowspan="2">Memory<br>GB</th><th rowspan="2">Power<br>W</th><th rowspan="2">Tokens<br>per joule</th><th rowspan="2">Date</th></tr><tr><th>4K</th><th>16K</th><th>32K</th></tr></thead>
-<tbody>${body}</tbody></table><div class="meas-note">Prompt = reading a 4,000-token prompt at 16K context. Memory = the whole card's peak at 16K. Power = the card's average while generating.</div></div>` : "<p>No results yet.</p>"}
+<tbody>${body}</tbody></table><div class="meas-note">Prompt = reading a 4,000-token prompt at 16K context. Memory = the whole card's peak at 16K. Power = the card's average while generating.</div></div></details>` : "<p>No results yet.</p>"}
 <h2>The machine</h2><p>NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
 <h2>Use the data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
 }
@@ -374,7 +386,11 @@ async function stats(request, env) {
   const days = Math.min(90, Math.max(1, +new URL(request.url).searchParams.get("days") || 7));
   const since = new Date(Date.now() - days * 86400000).toISOString();
   const q = (sql) => env.DB.prepare(sql).bind(since).all().then(r => r.results);
-  return json({ days,
+  // (Nov 25, David: "yes add that") estimate vs measured for every measured model: drift over 10% means the formula needs a look
+  const drift = (measuredFile.measured || []).map(r => { const m = DATA.models.find(x => x.id === r.model), g = DATA.gpus.find(x => x.id === r.gpu);
+    if (!m || !g || !r.gen_tps) return null; const e = estimate(m, g, { context: r.context, quant: r.quant }, DATA.quants);
+    return { model: r.model, gpu: r.gpu, context: r.context, measured: r.gen_tps, estimated: e.gen_tokens_per_s, off_pct: Math.round(100 * (e.gen_tokens_per_s - r.gen_tps) / r.gen_tps) }; }).filter(Boolean);
+  return json({ days, estimate_drift: drift,
     by_day: await q("SELECT substr(ts,1,10) day, count(*) n FROM calls WHERE ts >= ? GROUP BY day ORDER BY day"),
     by_kind: await q("SELECT kind, count(*) n FROM calls WHERE ts >= ? GROUP BY kind ORDER BY n DESC"),
     by_agent: await q("SELECT coalesce(nullif(client,''), ua) agent, count(*) n FROM calls WHERE ts >= ? GROUP BY agent ORDER BY n DESC LIMIT 25"),

@@ -84,4 +84,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("...a model that doesn't fit says so and how far over", /v-does_not_fit/.test(nf) && /GB over/.test(nf));
   const un = await call("/check?model=zzz-made-up&hardware=rtx%204060");
   check("...an unknown model gets a friendly page, not an error", un.status === 200 && /not sure about that one/.test(await un.text())); }
+{ const st = await (await call("/stats", { headers: { authorization: "Bearer made-up-key" } })).json();
+  const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
+  check("stats compare the estimate with every measurement (drift %)", Array.isArray(st.estimate_drift) && st.estimate_drift.length === mj.measured.length && st.estimate_drift.every(d => typeof d.off_pct === "number"), st.estimate_drift); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);
