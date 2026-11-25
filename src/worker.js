@@ -186,7 +186,7 @@ function json(obj, status = 200) {
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const CSS = `:root{--bg:#fff;--card:#fff;--ink:#1b1c1e;--mute:#62656b;--line:#e3e3df;--accent:#2457d6;--ok:#13795b;--okbg:#e6f4ee;--warn:#9a6200;--warnbg:#fdf1dc;--bad:#b3261e;--badbg:#fbe7e5;--code:#f0f0ec}
-@media (prefers-color-scheme:dark){:root{--bg:#121315;--card:#1b1c1f;--ink:#ececec;--mute:#9b9ea4;--line:#2c2e33;--accent:#7aa2ff;--ok:#5fd3a5;--okbg:#14302a;--warn:#f3be5d;--warnbg:#33290f;--bad:#ff8a80;--badbg:#3a1a18;--code:#24262a}}
+
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{border-bottom:1px solid var(--line);background:var(--bg)}header .in,main,footer .in{max-width:880px;margin:0 auto;padding:0 20px}
@@ -223,11 +223,10 @@ th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:fi
 .mb.cy i{background:#f4b326}.mb.ck i{background:#9782eb}.mb.cr i{background:#4dcdb4}.mb.cz i{background:#f79c6e}.mb.cb2 i{background:#66a4e9}
 .mr.cy .ic{color:#c98a00}.mr.ck .ic{color:#6a4ce2}.mr.cr .ic{color:#00957a}.mr.cz .ic{color:#d9561a}.mr.cb2 .ic{color:#257de0}
 .mx{color:var(--mute);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (prefers-color-scheme:dark){.mb{background:#26282c}.mb i{background:#5a5e66}.mb.cy i{background:#ad770a}.mb.ck i{background:#7f72c5}.mb.cr i{background:#058c73}.mb.cz i{background:#be5723}.mb.cb2 i{background:#2e76c4}
-.mr.cy .ic{color:#e0a020}.mr.ck .ic{color:#a99cf2}.mr.cr .ic{color:#2fc4a5}.mr.cz .ic{color:#f08a52}.mr.cb2 .ic{color:#6aaaf3}}
+
 @media (max-width:640px){.mr{grid-template-columns:1fr auto;row-gap:2px}.mb{grid-column:1 / -1}.mx{grid-column:1 / -1;margin-bottom:4px}.mmeta{display:block;margin:0}}.qgrid{display:grid;gap:14px}.qref{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.qn{font-weight:650;margin-bottom:6px}
 .qrow{display:grid;grid-template-columns:26px 92px 1fr 104px;grid-template-areas:"i l b v" ". . x x";align-items:center;gap:2px 10px;margin:6px 0}
-.qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.ql{grid-area:l;font-size:.88rem;font-weight:600}.qrow .cb.qsb{background:#d08a00}.qrow .cb.qmb{background:var(--accent)}.qrow .cb.ql2b{background:#8a63d2}.qrow .cb.qrb{background:#13897a}.qrow .cb.qpb{background:#5c8a2e}.ql2{background:#efe8fb;color:#6b47b8}.qr{background:#e3f4f1;color:#0f7468}.qp{background:#ebf3e2;color:#4a7424}@media (prefers-color-scheme:dark){.ql2{background:#2a2140;color:#b49cf0}.qr{background:#13302c;color:#6fd3c4}.qp{background:#1f2b14;color:#a3d277}}@media (max-width:560px){.qrow{grid-template-columns:26px 1fr 96px;grid-template-areas:"i l v" "b b b" "x x x"}}
+.qrow .ct{grid-area:b;height:14px;background:var(--card);border-radius:7px}.qrow .cb{border-radius:7px}.ql{grid-area:l;font-size:.88rem;font-weight:600}.qrow .cb.qsb{background:#d08a00}.qrow .cb.qmb{background:var(--accent)}.qrow .cb.ql2b{background:#8a63d2}.qrow .cb.qrb{background:#13897a}.qrow .cb.qpb{background:#5c8a2e}.ql2{background:#efe8fb;color:#6b47b8}.qr{background:#e3f4f1;color:#0f7468}.qp{background:#ebf3e2;color:#4a7424}@media (max-width:560px){.qrow{grid-template-columns:26px 1fr 96px;grid-template-areas:"i l v" "b b b" "x x x"}}
 .qv{grid-area:v;font-weight:700;font-size:.9rem;text-align:right;white-space:nowrap}.qx{grid-area:x;color:var(--mute);font-size:.8rem}
 .qi{grid-area:i;display:inline-flex;width:24px;height:24px;border-radius:7px;align-items:center;justify-content:center;vertical-align:middle}
 .qs,.qm{background:none;color:var(--mute)}.ic{width:15px;height:15px}
@@ -244,7 +243,7 @@ function page(title, body, origin, desc) {
 <title>${esc(title)}</title><meta name="description" content="${esc(desc || title + " - memory needed and speed, from LocalBit.")}">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc || "Will this AI model run on my hardware? Memory needed and speed, estimated or measured.")}">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232457d6'/%3E%3Cpath d='M9 8v16h14' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
-<style>${CSS}</style></head><body>
+<meta name="color-scheme" content="light"><style>:root{color-scheme:light}${CSS}</style></head><body>
 <header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
 <footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="https://github.com/adamson-gh/localbit">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
