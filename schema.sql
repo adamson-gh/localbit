@@ -25,3 +25,7 @@ CREATE INDEX IF NOT EXISTS reports_ts ON reports (ts);
 -- Failures inside LocalBit (Nov 25): where and what, never who.
 CREATE TABLE IF NOT EXISTS errors (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, path TEXT, tool TEXT, message TEXT);
 CREATE INDEX IF NOT EXISTS errors_ts ON errors (ts);
+
+-- Addresses asked for that don't exist (Nov 25): the path only, and the caller's self-reported name - never an IP.
+CREATE TABLE IF NOT EXISTS misses (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, path TEXT, ua TEXT);
+CREATE INDEX IF NOT EXISTS misses_ts ON misses (ts);

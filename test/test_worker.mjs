@@ -133,4 +133,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const seen = []; const env3 = { DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { seen.push([sql, v]); }, all: async () => ({ results: [] }) }) }) }, LIMITER: { limit: async () => ({ success: false }) } };
   const w3 = []; const r3 = await worker.fetch(new Request("https://localbit.example.workers.dev/api/check?model=x&hardware=y"), env3, { waitUntil: p => w3.push(p) }); await Promise.all(w3);
   check("a turned-away request is counted (kind 'limited', no address)", r3.status === 429 && seen.some(([s, v]) => /INSERT INTO calls/.test(s) && v.includes("limited")) && !seen.some(([s, v]) => v.some(x => /\d+\.\d+\.\d+\.\d+/.test(String(x)))), seen.map(x => x[1])); }
+{ const seen = []; const env4 = { DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { seen.push([sql, v]); }, all: async () => ({ results: [] }) }) }) } };
+  const w4 = []; const r4 = await worker.fetch(new Request("https://localbit.example.workers.dev/openapi.json", { headers: { "user-agent": "made-up-agent/1.0" } }), env4, { waitUntil: p => w4.push(p) }); await Promise.all(w4);
+  check("a missing address is logged - path and caller name only", r4.status === 404 && seen.some(([s, v]) => /INSERT INTO misses/.test(s) && v[1] === "/openapi.json" && v.length === 3), seen); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

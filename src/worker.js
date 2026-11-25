@@ -21,6 +21,8 @@ const CRAWLERS = ["ClaudeBot", "Claude-SearchBot", "GPTBot", "OAI-SearchBot", "G
   "Meta-ExternalAgent", "Amazonbot", "Bytespider", "CCBot", "DuckAssistBot", "YandexBot", "Baiduspider", "BrickBlueBot", "AhrefsBot", "SemrushBot"];
 const NOT_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') NOT LIKE '%${c}%'`).join(" AND ") + ")";
 const IS_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') LIKE '%${c}%'`).join(" OR ") + ")";
+// paths only scanners ask for (looking for weak websites) - counted, but told apart from addresses an agent might expect
+const SCANNER_SQL = "(path LIKE '%wp-%' OR path LIKE '%.php%' OR path LIKE '%.env%' OR path LIKE '%.git%' OR path LIKE '%admin%' OR path LIKE '%phpmyadmin%' OR path LIKE '%.asp%' OR path LIKE '%cgi-bin%' OR path LIKE '%.sql%' OR path LIKE '%config%' OR path LIKE '%backup%' OR path LIKE '%.bak%' OR path LIKE '%xmlrpc%')";
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26"];
 const KNOWN_AGENTS = ["ChatGPT-User", "OAI-SearchBot", "GPTBot", "Claude-User", "Claude-SearchBot", "ClaudeBot", "Claude-Code", "Perplexity-User",
   "PerplexityBot", "Google-Extended", "Googlebot", "bingbot", "Applebot", "Meta-ExternalAgent", "Amazonbot", "Bytespider", "CCBot", "DuckAssistBot",
@@ -566,6 +568,8 @@ async function stats(request, env) {
     errors_total: (await q("SELECT count(*) n FROM errors WHERE ts >= ?").catch(() => [{ n: null }]))[0]?.n,
     recent_errors: await q("SELECT ts, path, tool, message FROM errors WHERE ts >= ? ORDER BY ts DESC LIMIT 15").catch(() => []),
     limited_total: (await q("SELECT count(*) n FROM calls WHERE ts >= ? AND kind = 'limited'"))[0]?.n || 0,
+    misses_total: (await q("SELECT count(*) n FROM misses WHERE ts >= ?").catch(() => [{ n: 0 }]))[0]?.n || 0,
+    top_misses: await q(`SELECT path, count(*) n, ${SCANNER_SQL} scanner FROM misses WHERE ts >= ? GROUP BY path ORDER BY n DESC LIMIT 20`).catch(() => []),
     reports_by_problem: await q("SELECT problem, count(*) n FROM reports WHERE ts >= ? GROUP BY problem ORDER BY n DESC").catch(() => []),
     recent_reports: await q("SELECT ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note FROM reports WHERE ts >= ? ORDER BY ts DESC LIMIT 25").catch(() => []),
     unknown_asks: await q("SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND (verdict = 'unknown' OR model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 25"),
@@ -621,6 +625,8 @@ async function handle(request, env, ctx) {
     const pm = path.match(/^\/run\/([a-z0-9.\-]+)\/on\/([a-z0-9.\-]+)$/);
     if (pm) { const r = pairPage(pm[1], pm[2], origin); if (r) { logCall(env, ctx, { kind: "page", ua, model_id: pm[1], gpu_id: pm[2] }); return r; } }
     if (path === "/") { logCall(env, ctx, { kind: "home", ua }); return home(origin); }
+    // (Nov 25, owner: "yes") addresses asked for that don't exist - agents guessing standard paths, plus scanner noise. Path only.
+    if (env && env.DB) { try { ctx.waitUntil(env.DB.prepare("INSERT INTO misses (ts, path, ua) VALUES (?,?,?)").bind(new Date().toISOString(), path.slice(0, 100), String(ua || "").slice(0, 60)).run().catch(() => {})); } catch {} }
     return new Response("Not found", { status: 404 });
 }
 
