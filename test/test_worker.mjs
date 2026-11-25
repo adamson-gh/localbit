@@ -1,3 +1,4 @@
+import fs from "fs";
 // LocalBit: the Worker answered as an agent would call it - MCP and the plain API - with a fake log database. node test/test_worker.mjs
 import worker from "../src/worker.js";
 let ok = 0, bad = 0;
@@ -72,4 +73,9 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("over the limit: 429 with Retry-After", r.status === 429 && r.headers.get("retry-after") === "60", r.status);
   const st2 = await worker.fetch(new Request("https://localbit.example.workers.dev/stats", { headers: { authorization: "Bearer made-up-key" } }), env2, ctx);
   check("the owner's stats aren't rate-limited", st2.status === 200, st2.status); }
+{ const pg = await (await call("/measured")).text();
+  const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
+  const n = new Set(mj.measured.map(r => r.model)).size;
+  check("the /measured page lists every measured model, with a link to the data and the repo", (n === 0 ? /No results yet/.test(pg) : (pg.match(/<tr><td>/g) || []).length === n) && /api\/measured/.test(pg) && /github\.com\/adamson-gh\/localbit/.test(pg), n);
+  const hm = await (await call("/")).text(); check("the home page links to it", /\/measured"/.test(hm)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

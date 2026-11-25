@@ -197,6 +197,7 @@ function home(origin) {
 <p>Will an AI model run on your graphics card or Mac? LocalBit answers with the memory it needs and how fast it should generate - estimated from the model's design and the card's specs, and measured on real machines where results exist.</p>
 <h2>For AI agents</h2><p>MCP server (Streamable HTTP): <code>${origin}/mcp</code> - tools <code>check_fit</code>, <code>suggest_models</code>, <code>list_known</code>.</p>
 <p>Plain API: <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code></p>
+<h2>Measured, not guessed</h2><p><a href="${origin}/measured">Real speeds on an RTX 3090</a> - every model run on LocalBit's own machine, updated overnight.</p>
 <h2>Examples</h2><ul>
 <li><a href="${origin}/run/llama-3.1-8b/on/rtx-4060">Llama 3.1 8B on an RTX 4060</a></li>
 <li><a href="${origin}/run/qwen3-30b-a3b/on/rtx-4090">Qwen3 30B-A3B on an RTX 4090</a></li>
@@ -223,6 +224,27 @@ function reportForm(origin, m, g) {
 <p><label>Runtime <input name="runtime" placeholder="Ollama 0.40" size="14"></label> <label>Context <input name="context" inputmode="numeric" size="7"></label></p>
 <p><label>Note (no personal details)<br><textarea name="note" maxlength="500" rows="3" cols="50"></textarea></label></p><p><button>Send report</button></p></form></details>`;
 }
+function measuredPage(origin) {
+  const rows = measuredFile.measured || [];
+  const byModel = {};
+  for (const r of rows) (byModel[r.model] = byModel[r.model] || []).push(r);
+  const name = id => (DATA.models.find(m => m.id === id) || {}).name || id;
+  const at = (rs, ctx, k) => { const r = rs.find(x => x.context === ctx); return r && r[k] != null ? r[k] : null; };
+  const f = (v, d = 0) => v == null ? "-" : (+v).toLocaleString("en-US", { maximumFractionDigits: d });
+  const ids = Object.keys(byModel).sort((a, b) => (at(byModel[b], 16384, "gen_tps") || 0) - (at(byModel[a], 16384, "gen_tps") || 0));
+  const body = ids.map(id => { const rs = byModel[id]; const mid = rs.find(x => x.context === 16384) || rs[0];
+    return `<tr><td><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a><br><small>${esc(mid.ollama_tag || "")} · ${esc(mid.quant || "")}</small></td>` +
+      `<td>${f(at(rs, 4096, "gen_tps"), 1)}</td><td>${f(at(rs, 16384, "gen_tps"), 1)}</td><td>${f(at(rs, 32768, "gen_tps"), 1)}</td>` +
+      `<td>${f(at(rs, 16384, "prompt_tps_4k"))}</td><td>${f(mid.gpu_mem_peak_gib, 1)}</td><td>${f(mid.power_w)}</td><td>${f(mid.tokens_per_joule, 2)}</td><td>${esc(mid.date || "")}</td></tr>`; }).join("");
+  const any = rows[0] || {};
+  return page("Measured: local AI models on an RTX 3090 - LocalBit", `<h1>Measured on an RTX 3090</h1>
+<p>Real runs on LocalBit's own test machine - not estimates. Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
+${ids.length ? `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:.92rem" border="1" cellpadding="6">
+<thead><tr><th>Model</th><th>Tokens/s at 4K context</th><th>at 16K</th><th>at 32K</th><th>Reading a 4K prompt (tokens/s)</th><th>Card memory used (GB, 16K)</th><th>Power (W)</th><th>Tokens per joule</th><th>Measured</th></tr></thead>
+<tbody>${body}</tbody></table></div>` : "<p>No results yet.</p>"}
+<h2>The machine</h2><p>NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
+<h2>Use the data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
+}
 function pairPage(mid, gid, origin) {
   const m = DATA.models.find(x => x.id === mid), g = DATA.gpus.find(x => x.id === gid);
   if (!m || !g) return null;
@@ -236,10 +258,10 @@ function llmsTxt(origin) {
   return `# LocalBit\n\n> Will an AI model run on this hardware? Memory needed (weights + context cache) and estimated or measured generation speed for local models on graphics cards and Apple computers.\n\n` +
     `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
     `- JSON API: ${origin}/api/check?model=...&hardware=...&context=...&quant=... ; ${origin}/api/suggest?hardware=... ; ${origin}/api/models ; ${origin}/api/hardware ; ${origin}/api/measured ; POST ${origin}/api/report (JSON)\n\n` +
-    `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
+    `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
 }
 function sitemap(origin) {
-  const urls = [origin + "/", origin + "/about"];
+  const urls = [origin + "/", origin + "/measured", origin + "/about"];
   for (const m of DATA.models) for (const g of DATA.gpus) urls.push(`${origin}/run/${m.id}/on/${g.id}`);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc>${AS_OF.specs ? `<lastmod>${[AS_OF.specs, AS_OF.measured].filter(Boolean).sort().pop()}</lastmod>` : ""}</url>`).join("\n")}\n</urlset>`,
     { headers: { "content-type": "application/xml" } });
@@ -291,6 +313,7 @@ export default {
     if (path === "/api/models") return json({ models: DATA.models.map(({ id, name, params_b, active_b, verified }) => ({ id, name, params_b, active_b, verified })) });
     if (path === "/api/hardware") return json({ hardware: DATA.gpus.map(({ id, name, vram_gb, bandwidth_gbs }) => ({ id, name, vram_gb, bandwidth_gbs })) });
     if (path === "/api/measured") return json({ license: "CC BY 4.0 - credit LocalBit", data_as_of: AS_OF, measured: DATA.measured });
+    if (path === "/measured") { logCall(env, ctx, { kind: "measured", ua }); return measuredPage(origin); }
     if (path === "/about") { logCall(env, ctx, { kind: "about", ua }); return about(origin); }
     if (path === "/llms.txt") { logCall(env, ctx, { kind: "llms_txt", ua }); return new Response(llmsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8" } }); }
     if (path === "/sitemap.xml") return sitemap(origin);
