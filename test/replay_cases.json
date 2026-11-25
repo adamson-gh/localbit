@@ -1,0 +1,127 @@
+{
+ "_about": "Real questions agents and people asked LocalBit, with the answer they got. test/test_replay.mjs fails when an answer changes; re-run bench/build_replay.mjs --accept after a deliberate change.",
+ "cases": [
+  {
+   "model": "llama 3.1 8b",
+   "hardware": "rtx 4060",
+   "expect": {
+    "model_id": "llama-3.1-8b",
+    "gpu_id": "rtx-4060",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "qwen3 30b",
+   "hardware": "rtx 4090",
+   "expect": {
+    "model_id": "qwen3-30b-a3b",
+    "gpu_id": "rtx-4090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "llama 3.3 70b",
+   "hardware": "rtx 3090",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "rtx-3090",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "llama 3.3 70b",
+   "hardware": "2x rtx 3090",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "2x-rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "deepseek r1 14b",
+   "hardware": "rtx 3090",
+   "expect": {
+    "model_id": "qwen2.5-14b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "mistral 7b",
+   "hardware": "macbook air m2 16gb",
+   "expect": {
+    "model_id": "mistral-7b",
+    "gpu_id": "generic-m2-16gb",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "llama 3.1 8b",
+   "hardware": "rtx 2080",
+   "expect": {
+    "model_id": "llama-3.1-8b",
+    "gpu_id": "rtx-2080",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "llama 3.2 1b",
+   "hardware": "rtx 4060",
+   "context": 1000000,
+   "expect": {
+    "model_id": "llama-3.2-1b",
+    "gpu_id": "rtx-4060",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx 3090",
+   "context": 16384,
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "gemma 4 e4b",
+   "hardware": "rtx 3090",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "llama 4 scout",
+   "hardware": "rtx 4090",
+   "expect": {
+    "model_id": null,
+    "gpu_id": "rtx-4090",
+    "verdict": "unknown"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "qwen3 32b",
+   "hardware": "m3 max",
+   "expect": {
+    "model_id": "qwen3-32b",
+    "gpu_id": "generic-m3-max-64gb",
+    "verdict": "fits"
+   },
+   "added": "2026-11-25 (seeded from the day's test questions)"
+  }
+ ]
+}

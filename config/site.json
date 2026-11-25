@@ -1,0 +1,8 @@
+{
+ "_about": "LocalBit's settings in one place (Nov 25 - a lesson from running a home assistant: paths and addresses live in one file). Read by the Worker, the bench scripts and the home assistant's Agents page.",
+ "site": "https://localbit.adamson-cf.workers.dev",
+ "owner": "adamson-gh",
+ "owner_url": "https://github.com/adamson-gh",
+ "repo": "https://github.com/adamson-gh/localbit",
+ "registry_name": "io.github.adamson-gh/localbit"
+}

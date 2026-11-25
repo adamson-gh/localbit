@@ -127,4 +127,10 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("tools declare what they return (outputSchema) and the intro names every tool", jl.result.tools.filter(x => x.outputSchema).length === 5);
   const [si, ji] = await rpc({ jsonrpc: "2.0", id: 92, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "made-up", version: "1" }, capabilities: {} } });
   check("...", ["check_fit", "compare", "suggest_models", "node_log", "list_known", "report_issue"].every(n => ji.result.instructions.includes(n)), ji.result.instructions); }
+{ const badDB = { prepare: () => { throw new Error("made-up database outage"); } };
+  const r = await worker.fetch(new Request("https://localbit.example.workers.dev/api/check?model=llama%203.1%208b&hardware=rtx%204060"), { DB: badDB }, ctx);
+  check("a logging failure never costs the answer", r.status === 200 && (await r.json()).verdict === "fits");
+  const seen = []; const env3 = { DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { seen.push([sql, v]); }, all: async () => ({ results: [] }) }) }) }, LIMITER: { limit: async () => ({ success: false }) } };
+  const w3 = []; const r3 = await worker.fetch(new Request("https://localbit.example.workers.dev/api/check?model=x&hardware=y"), env3, { waitUntil: p => w3.push(p) }); await Promise.all(w3);
+  check("a turned-away request is counted (kind 'limited', no address)", r3.status === 429 && seen.some(([s, v]) => /INSERT INTO calls/.test(s) && v.includes("limited")) && !seen.some(([s, v]) => v.some(x => /\d+\.\d+\.\d+\.\d+/.test(String(x)))), seen.map(x => x[1])); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

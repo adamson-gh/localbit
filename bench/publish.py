@@ -25,7 +25,8 @@ def main():
     for (model, ctx), rs in sorted(by.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)):
         if ctx is None:
             continue
-        gens = [r for r in rs if r["test"] == "gen" and r.get("gen_tps")]
+        # (Nov 25 - lesson from a home assistant's watchdog) a run that landed partly off the graphics card measures the wrong thing - left out
+        gens = [r for r in rs if r["test"] == "gen" and r.get("gen_tps") and r.get("all_on_gpu") is not False]
         if len(gens) < 2:
             continue
         mid = sorted(gens, key=lambda r: r["gen_tps"])[len(gens) // 2]

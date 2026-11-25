@@ -1,5 +1,5 @@
 {
- "_about": "Measured on LocalBit's RTX 3090 (Windows, Ollama): middle of 3 runs per model and context, temperature 0, made-up prompts. gpu_mem_peak_gib is the whole card's peak use (the desktop adds about 0.5-1 GB). power_w is the card's average draw while generating. License: CC BY 4.0 - credit LocalBit.",
+ "_about": "Measured on LocalBit's RTX 3090 (Windows, Ollama): middle of 3 runs per model and context, temperature 0, made-up prompts. gpu_mem_peak_gib is the whole card's peak use (the desktop adds about 0.5-1 GB). power_w is the card's average draw while generating. quality_pct is the share of LocalBit's 60 script-graded questions answered right (math, instructions, facts, code; 4K context, temperature 0, thinking off). License: CC BY 4.0 - credit LocalBit.",
  "measured": [
   {
    "model": "gemma4-e4b",

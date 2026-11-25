@@ -5,11 +5,12 @@
 import modelsFile from "../data/models.json" with { type: "json" };
 import gpusFile from "../data/gpus.json" with { type: "json" };
 import measuredFile from "../data/measured.json" with { type: "json" };
+import siteFile from "../config/site.json" with { type: "json" };
 import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest } from "./estimate.js";
 
 const VERSION = "0.3.0";
-const SITE = "https://localbit.adamson-cf.workers.dev";
-const OWNER = { name: "adamson-gh", url: "https://github.com/adamson-gh" };
+const SITE = siteFile.site;
+const OWNER = { name: siteFile.owner, url: siteFile.owner_url };
 const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [...(measuredFile.measured || []), ...modelsFile.measured], gpus: gpusFile.gpus };
 // When the data was last checked: specs = the cards and models files; measured = the newest overnight result.
 const AS_OF = { specs: [gpusFile.updated, modelsFile.updated].filter(Boolean).sort().pop() || null,
@@ -158,7 +159,7 @@ function listKnown(args) {
            data: { models: rows }, log: {} };
 }
 
-// (Nov 25, David: "fun things for the agents" -> compare two + the node log -> "Ok")
+// (Nov 25, owner: "fun things for the agents" -> compare two + the node log -> "Ok")
 function compare(args) {
   const A = { model: args.a_model, hardware: args.a_hardware, context: args.context, quant: args.quant };
   const B = { model: args.b_model || args.a_model, hardware: args.b_hardware || args.a_hardware, context: args.context, quant: args.quant };
@@ -214,10 +215,12 @@ function agentOf(ua) {
 function logCall(env, ctx, row) {
   if (!env || !env.DB) return;
   const cut = (v, n = 80) => (v == null ? null : String(v).slice(0, n));
+  try {
   const stmt = env.DB.prepare("INSERT INTO calls (ts, kind, client, ua, tool, model_q, hw_q, model_id, gpu_id, verdict, context, quant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(new Date().toISOString(), cut(row.kind, 20), cut(row.client), cut(row.ua, 60), cut(row.tool, 40), cut(row.model_q), cut(row.hw_q),
           cut(row.model_id, 40), cut(row.gpu_id, 40), cut(row.verdict, 20), row.context || null, cut(row.quant, 12));
   ctx.waitUntil(stmt.run().catch(() => {}));
+  } catch {}   // (Nov 25) a logging hiccup never costs an agent its answer
 }
 
 // ---------- reports (what was seen, never who) ----------
@@ -245,6 +248,15 @@ async function limited(env, request, which = "LIMITER") {
 }
 const tooMany = () => new Response(JSON.stringify({ error: "Too many requests - LocalBit allows 120 a minute per address. Try again in a minute." }),
   { status: 429, headers: { "content-type": "application/json", "retry-after": "60", "access-control-allow-origin": "*" } });
+
+// ---------- errors (Nov 25 - a lesson from running a home assistant: log failures where they can be seen; never an IP) ----------
+function logError(env, ctx, where, tool, e) {
+  if (!env || !env.DB) return;
+  try {
+    const msg = String((e && (e.stack || e.message)) || e).split("\n").slice(0, 2).join(" | ").slice(0, 240);
+    ctx.waitUntil(env.DB.prepare("INSERT INTO errors (ts, path, tool, message) VALUES (?,?,?,?)").bind(new Date().toISOString(), String(where).slice(0, 80), tool ? String(tool).slice(0, 40) : null, msg).run().catch(() => {}));
+  } catch {}
+}
 
 // ---------- MCP ----------
 async function mcp(request, env, ctx) {
@@ -274,7 +286,9 @@ async function mcp(request, env, ctx) {
       if (p.name === "report_issue" && await limited(env, request, "REPORTS")) return fail(-32000, "Too many reports from here - try again in a minute.");
       const fn = p.name === "report_issue" ? (a => saveReport(env, ctx, a, "mcp", ua)) : RUN[p.name];
       if (!fn) return fail(-32602, "Unknown tool: " + p.name);
-      const out = fn(args);
+      let out;
+      try { out = fn(args); }
+      catch (e) { logError(env, ctx, "/mcp", p.name, e); return fail(-32603, "LocalBit hit an internal error answering that - it has been logged. Try again, or rephrase the model or hardware."); }
       logCall(env, ctx, { kind: "mcp_call", ua, tool: p.name, model_q: args.model, hw_q: args.hardware || args.kind, ...out.log });
       return reply({ content: [{ type: "text", text: out.text }], structuredContent: out.data, isError: !!out.error });
     }
@@ -348,7 +362,7 @@ function page(title, body, origin, desc) {
 <meta name="color-scheme" content="light"><style>:root{color-scheme:light}${CSS}</style></head><body>
 <header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/log">Node log</a><a href="${origin}/compare">Compare</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
-<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="https://github.com/adamson-gh/localbit">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
+<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="${siteFile.repo}">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
 </body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 function askBox(origin, model = "", hw = "") {
@@ -363,7 +377,7 @@ function home(origin) {
 <div class="grid3" style="margin-top:22px">
 <div class="card"><h3>Live node</h3><p>An RTX 3090 in the field, testing models every night. ${nMeas} logged so far. <a href="${origin}/measured">Latest tested</a>.</p></div>
 <div class="card"><h3>Labeled readings</h3><p>Every answer says estimated or measured, and when it was last read.</p></div>
-<div class="card"><h3>Open data</h3><p>Readings and tables under CC BY 4.0. Scripts on <a href="https://github.com/adamson-gh/localbit">GitHub</a>.</p></div></div>
+<div class="card"><h3>Open data</h3><p>Readings and tables under CC BY 4.0. Scripts on <a href="${siteFile.repo}">GitHub</a>.</p></div></div>
 <h2 id="agents">For AI agents</h2>
 <div class="card"><p style="margin-top:0"><b>MCP server</b> (Streamable HTTP, no key): <code>${origin}/mcp</code><br><span class="small">Listed in the MCP Registry as <code>io.github.adamson-gh/localbit</code></span></p>
 <p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare</code> · <code>node_log</code> · <code>list_known</code> · <code>report_issue</code></p>
@@ -411,19 +425,19 @@ function reportForm(origin, m, g) {
 <p><label>Runtime <input name="runtime" placeholder="Ollama 0.40" size="14"></label> <label>Context <input name="context" inputmode="numeric" size="7"></label></p>
 <p><label>Note (no personal details)<br><textarea name="note" maxlength="500" rows="3" cols="50"></textarea></label></p><p><button>Send report</button></p></form></details>`;
 }
-// (Nov 25, David: "I can't tell if one is better than the other") the measured page leads with two plain charts and a how-to-read
+// (Nov 25, owner: "I can't tell if one is better than the other") the measured page leads with two plain charts and a how-to-read
 const ICON = {
   speed: `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" fill="currentColor"/></svg>`,
   size: `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
 };
-// (Nov 25, David: "put each model's results together ... other metrics we found important") one card per measured model with
+// (Nov 25, owner: "put each model's results together ... other metrics we found important") one card per measured model with
 // everything about it: speed, staying fast in long chats, reading a document, size on the card, energy - each with its icon
 ICON.read = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12h8M9 16h8M9 8h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 ICON.quality = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 ICON.long = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 10h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 ICON.power = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function charts(ids, byModel, name, origin) {
-  // (Nov 25, David: "too AI generated ... the energy bar isn't consistent") every bar is the number printed beside it, scaled to the
+  // (Nov 25, owner: "too AI generated ... the energy bar isn't consistent") every bar is the number printed beside it, scaled to the
   // largest of the models shown (Size: to the card's 24 GB). One ink, thin bars, plain labels; "lower is better" said where it is.
   const pick = id => byModel[id].find(x => x.context === 16384) || byModel[id][0];
   const at = (id, ctx) => (byModel[id].find(x => x.context === ctx) || {}).gen_tps;
@@ -432,7 +446,7 @@ function charts(ids, byModel, name, origin) {
              read: r.prompt_tps_4k ? 4000 / r.prompt_tps_4k : null, size: +r.gpu_mem_peak_gib || 0,
              wh: r.power_w && r.gen_tps ? r.power_w * 400 / r.gen_tps / 3600 : null, q: r.quality_pct != null ? r.quality_pct : null, qc: r.quality_by_cat }; });
   const mx = k => Math.max(...vals.map(v => v[k] || 0), 1e-9);
-  // (Nov 25, David: "speed = yellow, energy = orange, very light ... more compact") one line per measure; the sentence is the tooltip
+  // (Nov 25, owner: "speed = yellow, energy = orange, very light ... more compact") one line per measure; the sentence is the tooltip
   const bar = (v, of, c = "") => `<span class="mb ${c}"><i style="width:${Math.max(1.5, Math.min(100, 100 * v / of)).toFixed(1)}%"></i></span>`;
   const row = (icon, label, dir, num, unit, b, note, c = "") => `<div class="mr ${c}" title="${esc(note)}"><div class="mk">${icon}<span>${label}</span>${dir ? `<em>${dir}</em>` : ""}</div>
 <div class="mn">${num}<small>${unit}</small></div>${b}<div class="mx">${note}</div></div>`;
@@ -502,7 +516,7 @@ ${ids.length ? `<details class="card"><summary>All the numbers as a table</summa
 <thead><tr><th rowspan="2">Model</th><th colspan="3" style="text-align:center">Tokens/s by context</th><th rowspan="2">Quality<br>% right</th><th rowspan="2">Prompt<br>tokens/s</th><th rowspan="2">Memory<br>GB</th><th rowspan="2">Power<br>W</th><th rowspan="2">Tokens<br>per joule</th><th rowspan="2">Date</th></tr><tr><th>4K</th><th>16K</th><th>32K</th></tr></thead>
 <tbody>${body}</tbody></table><div class="meas-note">Prompt = reading a 4,000-token prompt at 16K context. Memory = the whole card's peak at 16K. Power = the card's average while generating.</div></div></details>` : "<p>No results yet.</p>"}
 <h2>Method</h2><p>Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
-<h2>Data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
+<h2>Data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="${siteFile.repo}">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
 }
 function pairPage(mid, gid, origin) {
   const m = DATA.models.find(x => x.id === mid), g = DATA.gpus.find(x => x.id === gid);
@@ -536,7 +550,7 @@ async function stats(request, env) {
   const days = Math.min(90, Math.max(1, +new URL(request.url).searchParams.get("days") || 7));
   const since = new Date(Date.now() - days * 86400000).toISOString();
   const q = (sql) => env.DB.prepare(sql).bind(since).all().then(r => r.results);
-  // (Nov 25, David: "yes add that") estimate vs measured for every measured model: drift over 10% means the formula needs a look
+  // (Nov 25, owner: "yes add that") estimate vs measured for every measured model: drift over 10% means the formula needs a look
   const drift = (measuredFile.measured || []).map(r => { const m = DATA.models.find(x => x.id === r.model), g = DATA.gpus.find(x => x.id === r.gpu);
     if (!m || !g || !r.gen_tps) return null; const e = estimate(m, g, { context: r.context, quant: r.quant }, DATA.quants);
     return { model: r.model, gpu: r.gpu, context: r.context, measured: r.gen_tps, estimated: e.gen_tokens_per_s, off_pct: Math.round(100 * (e.gen_tokens_per_s - r.gen_tps) / r.gen_tps) }; }).filter(Boolean);
@@ -549,6 +563,9 @@ async function stats(request, env) {
     by_tool: await q("SELECT tool, count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL GROUP BY tool ORDER BY n DESC"),
     top_models: await q(`SELECT coalesce(model_id, model_q) model, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (model_id IS NOT NULL OR model_q IS NOT NULL) GROUP BY model ORDER BY n DESC LIMIT 25`),
     top_hardware: await q(`SELECT coalesce(gpu_id, hw_q) hardware, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (gpu_id IS NOT NULL OR hw_q IS NOT NULL) GROUP BY hardware ORDER BY n DESC LIMIT 25`),
+    errors_total: (await q("SELECT count(*) n FROM errors WHERE ts >= ?").catch(() => [{ n: null }]))[0]?.n,
+    recent_errors: await q("SELECT ts, path, tool, message FROM errors WHERE ts >= ? ORDER BY ts DESC LIMIT 15").catch(() => []),
+    limited_total: (await q("SELECT count(*) n FROM calls WHERE ts >= ? AND kind = 'limited'"))[0]?.n || 0,
     reports_by_problem: await q("SELECT problem, count(*) n FROM reports WHERE ts >= ? GROUP BY problem ORDER BY n DESC").catch(() => []),
     recent_reports: await q("SELECT ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note FROM reports WHERE ts >= ? ORDER BY ts DESC LIMIT 25").catch(() => []),
     unknown_asks: await q("SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND (verdict = 'unknown' OR model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 25"),
@@ -557,14 +574,23 @@ async function stats(request, env) {
 
 export default {
   async fetch(request, env, ctx) {
+    try { return await handle(request, env, ctx); }
+    catch (e) {
+      let where = "?"; try { where = new URL(request.url).pathname; } catch {}
+      logError(env, ctx, where, null, e);
+      return json({ error: "LocalBit hit an internal error - it has been logged." }, 500);
+    }
+  },
+};
+async function handle(request, env, ctx) {
     const url = new URL(request.url), origin = url.origin, path = url.pathname.replace(/\/+$/, "") || "/";
     const ua = agentOf(request.headers.get("user-agent"));
-    if (path !== "/stats" && request.method !== "OPTIONS" && await limited(env, request)) return tooMany();
+    if (path !== "/stats" && request.method !== "OPTIONS" && await limited(env, request)) { logCall(env, ctx, { kind: "limited", ua }); return tooMany(); }
     if (path === "/mcp") return mcp(request, env, ctx);
     if (path === "/stats") return stats(request, env);
     if (request.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type, mcp-protocol-version" } });
     if (path === "/api/report" && request.method === "POST") {
-      if (await limited(env, request, "REPORTS")) return tooMany();
+      if (await limited(env, request, "REPORTS")) { logCall(env, ctx, { kind: "limited", ua, tool: "report_issue" }); return tooMany(); }
       const raw = await request.text();
       if (raw.length > 8192) return json({ error: "too large" }, 413);
       const isForm = (request.headers.get("content-type") || "").includes("form");
@@ -596,5 +622,5 @@ export default {
     if (pm) { const r = pairPage(pm[1], pm[2], origin); if (r) { logCall(env, ctx, { kind: "page", ua, model_id: pm[1], gpu_id: pm[2] }); return r; } }
     if (path === "/") { logCall(env, ctx, { kind: "home", ua }); return home(origin); }
     return new Response("Not found", { status: 404 });
-  },
-};
+}
+

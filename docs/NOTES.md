@@ -1,0 +1,35 @@
+# LocalBit - how it works, the rules, the lessons
+
+For whoever works on LocalBit next (a person or an AI session). Keep it short and current.
+
+## Parts
+- **Worker** (`src/worker.js`, `src/estimate.js`): the site, the JSON API and the MCP server, on Cloudflare Workers.
+  Data is bundled at deploy: `data/models.json`, `data/gpus.json`, `data/measured.json`. Settings: `config/site.json` (one place).
+- **Log** (Cloudflare D1, `schema.sql`): `calls` (what was asked), `reports` (answers said to be wrong), `errors` (failures).
+  Never IP addresses, accounts or anything that identifies a person.
+- **Node** (`bench/`): an RTX 3090 on Windows that measures models overnight. `bench/nightly.ps1` -> `bench/nightly.py`:
+  measure (`run_3090.py`), quality check (`quiz.py`), publish (`publish.py`), back up the log (`backups/`), add new real
+  questions to the replay (`build_replay.mjs`), run every test, deploy only if they pass, check the live site, write
+  `bench/status.json`. The machine is shared with a home assistant: the run stops the moment someone uses it from a phone,
+  and always reloads the assistant's model afterwards.
+
+## Rules
+- Answers say **estimated** (with a likely range) or **measured**, how current the data is, and link a page to cite.
+- No IP addresses or personal data anywhere - logs, reports (emails, numbers and links stripped), commits.
+- Commit messages: what changed and a `Why:` line; no personal names - the repository is public.
+- Tests never write real data files (`data/`, `backups/`); they use temporary copies and made-up models.
+- Only models in `bench/approved.txt` are ever downloaded; downloaded ones are removed after measuring.
+- One change, one commit; deploy only after `npm test` passes.
+
+## Lessons (from running a home assistant, applied here)
+- **Replay real questions before every change.** `test/replay_cases.json` - real asks with the answer they got; a changed
+  answer fails the tests. After a deliberate change: `node bench/build_replay.mjs --accept`.
+- **Every complaint becomes a test.** `test/report_cases.json` - each report, open until reviewed; once fixed, add an
+  `expect` and it is checked forever.
+- **Log failures where they're seen.** The `errors` table and turned-away requests show on the owner's stats page;
+  the nightly status shows in the home assistant's daily self-check. No phone alerts.
+- **Back up what can't be recreated.** The D1 log is exported nightly to `backups/` (two weeks kept).
+- **Runtime updates change speeds.** A measurement from a different Ollama version or driver is redone.
+- **A run partly off the graphics card measures the wrong thing** - it is logged and left out of the published data.
+- **Silent substitutions mislead.** When a name maps to another model or a Mac or multi-card setup is assumed, the answer says so.
+- **Check the deploy copy.** Files copied between machines can lag - verify before deploying (tests run on the deploying machine).

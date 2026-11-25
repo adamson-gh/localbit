@@ -1,0 +1,4 @@
+{
+ "_about": "Every report that an answer was wrong (Nov 25 - a lesson from running a home assistant: each complaint becomes a test). status: open until reviewed; an 'expect' added when fixed is then checked by test/test_replay.mjs.",
+ "reports": []
+}

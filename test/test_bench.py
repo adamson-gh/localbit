@@ -69,5 +69,27 @@ check("the quiz: 60 questions, 15 per group", len(QZ.Q) == 60 and all(sum(1 for 
 ix = {q["id"]: q for q in QZ.Q}
 check("grading: right answers pass, wrong ones fail", QZ.grade(ix["m01"], "The change is $29.") and not QZ.grade(ix["m01"], "31") and QZ.grade(ix["f07"], "CO2")
       and QZ.grade(ix["i04"], '```json\n{"name": "x", "age": 1}\n```') and not QZ.grade(ix["i02"], "Yes") and QZ.grade(ix["c13"], "a-b-c"))
+# nightly: the live-site check, re-measuring after a runtime update, and leaving out runs partly off the card
+class SiteH(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def _j(self, o):
+        b = json.dumps(o).encode(); self.send_response(200); self.send_header("content-type", "application/json"); self.end_headers(); self.wfile.write(b)
+    def do_POST(self): self.rfile.read(int(self.headers["content-length"])); self._j({"result": {"tools": [{}, {}, {}, {}, {}, {}]}})
+    def do_GET(self): self._j({"verdict": "fits"})
+site = HTTPServer(("127.0.0.1", 0), SiteH); threading.Thread(target=site.serve_forever, daemon=True).start()
+import nightly as NG
+check("nightly: the live-site check passes when the site answers", NG.site_ok("http://127.0.0.1:%d" % site.server_port))
+check("...and fails when it doesn't", not NG.site_ok("http://127.0.0.1:9"))
+site.shutdown()
+os.environ["LOCALBIT_RUNS"] = str(tmp / "ver_runs.jsonl")
+(tmp / "ver_runs.jsonl").write_text(json.dumps({"date": "2099-01-01T03:00:00", "model": "made-up:7b", "test": "gen", "gen_tps": 50, "ollama": "0.40", "driver": "600"}) + "\n", encoding="utf-8")
+spec2 = _u.spec_from_file_location("rb2", bench / "run_3090.py"); rb2 = _u.module_from_spec(spec2); spec2.loader.exec_module(rb2)
+check("same runtime: the measurement still counts", rb2.done_recently("made-up:7b", days=1e6, ver={"ollama": "0.40", "driver": "600"}))
+check("Ollama or driver updated: re-measure", not rb2.done_recently("made-up:7b", days=1e6, ver={"ollama": "0.41", "driver": "600"}))
+part = [dict(date="2026-11-25T03:00:00", gpu="rtx-3090", model="made-up:7b", ctx=4096, test="gen", run=i, gen_tps=50 + i, all_on_gpu=(i != 2)) for i in range(3)]
+(tmp / "part.jsonl").write_text("".join(json.dumps(x) + "\n" for x in part), encoding="utf-8")
+pp = subprocess.run([sys.executable, str(bench / "publish.py")], env=dict(os.environ, LOCALBIT_RUNS=str(tmp / "part.jsonl"), LOCALBIT_MEASURED=str(tmp / "part_out.json")), capture_output=True, text=True, timeout=60)
+po = json.loads((tmp / "part_out.json").read_text())["measured"]
+check("a run partly off the graphics card is left out of what's published", po and po[0]["runs"] == 2, (po, pp.stderr[-200:]))
 srv.shutdown()
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)

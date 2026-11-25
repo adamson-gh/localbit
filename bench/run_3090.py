@@ -183,8 +183,9 @@ def model_meta(model):
         return {}
 
 
-def done_recently(model, days=30, test="gen"):
-    """A real result for this model (speed: test "gen"; quality: test "quiz") in the last `days` days."""
+def done_recently(model, days=30, test="gen", ver=None):
+    """A real result for this model (speed: test "gen"; quality: test "quiz") in the last `days` days. (Nov 25 - a lesson from running a home assistant:
+    runtime updates change speeds) a speed result from a different Ollama version or graphics driver doesn't count - re-measure."""
     if not RUNS.exists():
         return False
     for line in RUNS.read_text(encoding="utf-8").splitlines()[::-1]:
@@ -193,12 +194,14 @@ def done_recently(model, days=30, test="gen"):
         except ValueError:
             continue
         if r.get("model") == model and r.get("test") == test and (r.get("gen_tps") if test == "gen" else r.get("n")):
+            if ver and test == "gen" and (r.get("ollama") != ver.get("ollama") or r.get("driver") != ver.get("driver")):
+                return False
             return (time.time() - datetime.fromisoformat(r["date"]).timestamp()) < days * 86400
     return False
 
 
 def quiz(model, ver):
-    """(Nov 25, David: "is quality not something we can measure? ... Yes, swap") the 60-question check (bench/quiz.py), 4K context,
+    """(Nov 25, owner: "is quality not something we can measure? ... Yes, swap") the 60-question check (bench/quiz.py), 4K context,
     temperature 0, thinking off. One row: right per group, the ids missed. Returns (row or None, stopped)."""
     sys.path.insert(0, str(HERE))
     import quiz as QZ
@@ -255,6 +258,8 @@ def measure(model, ver):
                 with open(RUNS, "a", encoding="utf-8") as f:
                     f.write(json.dumps(row) + "\n")
                 log(model, ctx, test, run + 1, "gen", r.get("gen_tps"), "prompt", r.get("prompt_tps"), "on gpu", r.get("all_on_gpu"))
+                if r.get("all_on_gpu") is False:
+                    log(model, ctx, "WARNING partly off the graphics card - this run won't be published")
     return rows, False
 
 
@@ -264,19 +269,19 @@ NOW = "--now" in sys.argv
 def main():
     maxm = int(sys.argv[sys.argv.index("--max-models") + 1]) if "--max-models" in sys.argv else 3
     approved = [l.strip() for l in (HERE / "approved.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
-    todo = [m for m in approved if not (done_recently(m) and done_recently(m, test="quiz"))][:maxm]
+    ver = versions()
+    todo = [m for m in approved if not (done_recently(m, ver=ver) and done_recently(m, test="quiz"))][:maxm]
     if not todo:
         log("nothing to measure"); return
     if should_stop(NOW):
         return
-    ver = versions()
     try:
         for m in todo:
             if not have(m) and not pull(m):
                 continue
             if should_stop(NOW):
                 break
-            if not done_recently(m):
+            if not done_recently(m, ver=ver):
                 _, stopped = measure(m, ver)
                 if stopped:
                     break

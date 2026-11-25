@@ -21,3 +21,7 @@ CREATE TABLE IF NOT EXISTS reports (
   problem TEXT, obs_tps REAL, obs_mem_gb REAL, context INTEGER, runtime TEXT, note TEXT
 );
 CREATE INDEX IF NOT EXISTS reports_ts ON reports (ts);
+
+-- Failures inside LocalBit (Nov 25): where and what, never who.
+CREATE TABLE IF NOT EXISTS errors (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, path TEXT, tool TEXT, message TEXT);
+CREATE INDEX IF NOT EXISTS errors_ts ON errors (ts);

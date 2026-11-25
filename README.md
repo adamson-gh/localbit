@@ -49,5 +49,8 @@ npx wrangler dev         # local server at http://127.0.0.1:8787
 Deploy: `npx wrangler login`, `npx wrangler d1 create localbit` (paste the id into wrangler.toml),
 `npx wrangler d1 execute localbit --remote --file=schema.sql`, `npx wrangler secret put STATS_KEY`, `npx wrangler deploy`.
 
+## More
+How it works, the rules and the lessons: `docs/NOTES.md`. What changed: `CHANGELOG.md`.
+
 ## License
 Code: MIT (LICENSE). Data in `data/`: CC BY 4.0 (DATA_LICENSE.md).
