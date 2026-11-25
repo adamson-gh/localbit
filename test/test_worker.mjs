@@ -78,4 +78,10 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const n = new Set(mj.measured.map(r => r.model)).size;
   check("the /measured page lists every measured model, with a link to the data and the repo", (n === 0 ? /No results yet/.test(pg) : (pg.match(/<tr><td>/g) || []).length === n) && /api\/measured/.test(pg) && /github\.com\/adamson-gh\/localbit/.test(pg), n);
   const hm = await (await call("/")).text(); check("the home page links to it", /\/measured"/.test(hm)); }
+{ const ck = await (await call("/check?model=llama%203.1%208b&hardware=rtx%204060")).text();
+  check("people can ask on the site: /check shows the verdict, memory and speed", /verdict v-fits/.test(ck) && /Memory needed/.test(ck) && /tokens\/s/.test(ck), ck.slice(0, 200));
+  const nf = await (await call("/check?model=llama%203.3%2070b&hardware=rtx%203090")).text();
+  check("...a model that doesn't fit says so and how far over", /v-does_not_fit/.test(nf) && /GB over/.test(nf));
+  const un = await call("/check?model=zzz-made-up&hardware=rtx%204060");
+  check("...an unknown model gets a friendly page, not an error", un.status === 200 && /not sure about that one/.test(await un.text())); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

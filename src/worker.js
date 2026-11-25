@@ -185,27 +185,94 @@ function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*" } });
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-function page(title, body, origin) {
+const CSS = `:root{--bg:#f7f7f5;--card:#fff;--ink:#1b1c1e;--mute:#62656b;--line:#e3e3df;--accent:#2457d6;--ok:#13795b;--okbg:#e6f4ee;--warn:#9a6200;--warnbg:#fdf1dc;--bad:#b3261e;--badbg:#fbe7e5;--code:#f0f0ec}
+@media (prefers-color-scheme:dark){:root{--bg:#121315;--card:#1b1c1f;--ink:#ececec;--mute:#9b9ea4;--line:#2c2e33;--accent:#7aa2ff;--ok:#5fd3a5;--okbg:#14302a;--warn:#f3be5d;--warnbg:#33290f;--bad:#ff8a80;--badbg:#3a1a18;--code:#24262a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+header{border-bottom:1px solid var(--line);background:var(--card)}header .in,main,footer .in{max-width:880px;margin:0 auto;padding:0 20px}
+header .in{display:flex;align-items:center;justify-content:space-between;height:58px;gap:16px}
+.logo{font-weight:750;font-size:1.15rem;letter-spacing:-.01em;color:var(--ink)}.logo b{color:var(--accent)}
+nav a{color:var(--mute);margin-left:18px;font-size:.95rem}nav a:hover{color:var(--ink)}
+main{padding:34px 20px 20px}h1{font-size:1.9rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}h2{font-size:1.15rem;margin:34px 0 10px}
+.lede{color:var(--mute);font-size:1.08rem;max-width:640px;margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:16px 0}
+.ask{display:flex;gap:10px;flex-wrap:wrap}.ask input{flex:1 1 200px;font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+button,.btn{font:inherit;font-weight:600;padding:11px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+.hint{color:var(--mute);font-size:.88rem;margin-top:10px}
+.verdict{display:inline-block;font-weight:700;padding:6px 12px;border-radius:999px;font-size:.95rem}
+.v-fits{background:var(--okbg);color:var(--ok)}.v-tight{background:var(--warnbg);color:var(--warn)}.v-does_not_fit{background:var(--badbg);color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0 6px}
+.stat{background:var(--bg);border-radius:10px;padding:12px 14px}.stat .k{color:var(--mute);font-size:.82rem}.stat .v{font-size:1.35rem;font-weight:700}.stat .s{color:var(--mute);font-size:.82rem}
+.bar{height:10px;border-radius:6px;background:var(--line);overflow:hidden;display:flex;margin:6px 0 4px}.bar i{display:block;height:100%}
+.tag{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--code);color:var(--mute);margin-left:6px;vertical-align:middle}
+.tag.m{background:var(--okbg);color:var(--ok)}
+ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.grid3 .card{margin:0}
+.grid3 h3{margin:0 0 6px;font-size:1rem}.grid3 p{margin:0;color:var(--mute);font-size:.94rem}
+code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
+table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
+.scroll{overflow-x:auto}.chart{position:relative;margin-top:10px}.crow{display:grid;grid-template-columns:150px 1fr;gap:2px 14px;align-items:center;margin:12px 0}
+.cl{font-weight:600;font-size:.95rem}.ct{position:relative;height:26px;background:var(--bg);border-radius:6px}.cb{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.cv{position:absolute;left:8px;top:3px;font-size:.85rem;font-weight:700;color:#fff;mix-blend-mode:normal;text-shadow:0 0 3px rgba(0,0,0,.35)}.cs{grid-column:2;color:var(--mute);font-size:.82rem}
+.readline{position:absolute;top:0;bottom:0;left:calc(164px + (100% - 164px) * var(--read, 0));border-left:2px dashed var(--mute);pointer-events:none}
+.readline span{position:absolute;top:-18px;left:4px;font-size:.72rem;color:var(--mute);white-space:nowrap}
+@media (max-width:560px){.crow{grid-template-columns:1fr}.cs{grid-column:1}.readline{display:none}}table.meas td:first-child{min-width:170px}table.meas td:nth-child(3){font-weight:700}.meas-note{color:var(--mute);font-size:.82rem;margin-top:10px}.small{color:var(--mute);font-size:.88rem}.chips a{display:inline-block;margin:4px 6px 4px 0;padding:5px 11px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--ink)}
+details summary{cursor:pointer;color:var(--accent);font-weight:600}details form p{margin:10px 0}details input,details select,details textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+footer{border-top:1px solid var(--line);margin-top:40px}footer .in{padding:18px 20px;color:var(--mute);font-size:.85rem;display:flex;flex-wrap:wrap;gap:6px 16px}`;
+function page(title, body, origin, desc) {
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><meta name="description" content="${esc(title)} - memory needed and estimated speed, from LocalBit.">
-<style>body{font:16px/1.55 system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#1d1d1f}h1{font-size:1.5rem}code,pre{background:#f3f3f5;border-radius:6px;padding:.1rem .35rem}pre{padding:.8rem;overflow:auto}a{color:#0b57d0}small{color:#666}</style>
-</head><body>${body}<hr><small>LocalBit ${VERSION} · ${esc(asOfText())} · <a href="${origin}/">home</a> · <a href="${origin}/llms.txt">llms.txt</a> · <a href="${origin}/about">about, privacy &amp; data license</a> · MCP: <code>${origin}/mcp</code></small></body></html>`,
-    { headers: { "content-type": "text/html; charset=utf-8" } });
+<title>${esc(title)}</title><meta name="description" content="${esc(desc || title + " - memory needed and speed, from LocalBit.")}">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc || "Will this AI model run on my hardware? Memory needed and speed, estimated or measured.")}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232457d6'/%3E%3Cpath d='M9 8v16h14' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>${CSS}</style></head><body>
+<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Measured</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
+<main>${body}</main>
+<footer><div class="in"><span>LocalBit ${VERSION}</span><span>${esc(asOfText())}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="https://github.com/adamson-gh/localbit">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
+</body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
+}
+function askBox(origin, model = "", hw = "") {
+  return `<form class="ask" method="get" action="${origin}/check"><input name="model" placeholder="Model - e.g. Llama 3.1 8B, qwen3:30b" value="${esc(model)}" aria-label="Model">
+<input name="hardware" placeholder="Card or Mac - e.g. RTX 4060, M4 Max, 12 GB" value="${esc(hw)}" aria-label="Hardware"><button>Check</button></form>`;
 }
 function home(origin) {
-  return page("LocalBit - will this AI model run on my hardware?", `<h1>LocalBit</h1>
-<p>Will an AI model run on your graphics card or Mac? LocalBit answers with the memory it needs and how fast it should generate - estimated from the model's design and the card's specs, and measured on real machines where results exist.</p>
-<h2>For AI agents</h2><p>MCP server (Streamable HTTP): <code>${origin}/mcp</code> - tools <code>check_fit</code>, <code>suggest_models</code>, <code>list_known</code>.</p>
-<p>Plain API: <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code></p>
-<h2>Measured, not guessed</h2><p><a href="${origin}/measured">Real speeds on an RTX 3090</a> - every model run on LocalBit's own machine, updated overnight.</p>
-<h2>Examples</h2><ul>
-<li><a href="${origin}/run/llama-3.1-8b/on/rtx-4060">Llama 3.1 8B on an RTX 4060</a></li>
-<li><a href="${origin}/run/qwen3-30b-a3b/on/rtx-4090">Qwen3 30B-A3B on an RTX 4090</a></li>
-<li><a href="${origin}/run/llama-3.3-70b/on/rtx-3090">Llama 3.3 70B on an RTX 3090</a></li></ul>
-<h2>What LocalBit records</h2><p>Which tool was called, the model and hardware named, and the calling app's self-reported name - to learn what people and agents ask about. No IP addresses, accounts or personal data. <a href="${origin}/about">More: who runs it, privacy, data license.</a></p>`, origin);
+  const nMeas = new Set((measuredFile.measured || []).map(r => r.model)).size;
+  return page("LocalBit - will this AI model run on my hardware?", `<h1>Will this AI model run on my hardware?</h1>
+<p class="lede">How much memory a local model needs and how fast it will answer on your graphics card or Mac - estimated from the model's design and the card's specs, and <b>measured</b> on real hardware where results exist.</p>
+<div class="card">${askBox(origin)}<div class="hint">Try: <a href="${origin}/check?model=llama%203.1%208b&hardware=rtx%204060">Llama 3.1 8B on an RTX 4060</a> · <a href="${origin}/check?model=qwen3%2030b&hardware=rtx%204090">Qwen3 30B on an RTX 4090</a> · <a href="${origin}/check?model=llama%203.3%2070b&hardware=rtx%203090">Llama 3.3 70B on an RTX 3090</a></div></div>
+<div class="grid3" style="margin-top:22px">
+<div class="card"><h3>Measured, not guessed</h3><p>${nMeas} model${nMeas === 1 ? "" : "s"} timed on LocalBit's own RTX 3090, more every night. <a href="${origin}/measured">See the table</a>.</p></div>
+<div class="card"><h3>Every answer says how it knows</h3><p>Estimated or measured, and the date the data is current as of.</p></div>
+<div class="card"><h3>Open data</h3><p>Measurements and tables under CC BY 4.0, scripts on <a href="https://github.com/adamson-gh/localbit">GitHub</a>.</p></div></div>
+<h2 id="agents">For AI agents</h2>
+<div class="card"><p style="margin-top:0"><b>MCP server</b> (Streamable HTTP, no key): <code>${origin}/mcp</code><br><span class="small">Listed in the MCP Registry as <code>io.github.adamson-gh/localbit</code></span></p>
+<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>list_known</code> · <code>report_issue</code></p>
+<p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a></p></div>
+<h2>What LocalBit records</h2><p class="small">Which tool was called, the model and hardware named, and the calling app's self-reported name - to learn what people and agents ask about. No IP addresses, accounts or personal data. <a href="${origin}/about">Who runs it, privacy, data license.</a></p>`, origin,
+  "Will an AI model run on your GPU or Mac? Memory needed and tokens per second - estimated, and measured on a real RTX 3090.");
+}
+function resultCard(out) {
+  const d = out.data, mg = d.memory_gb || {}, meas = d.measured;
+  const vt = { fits: "Fits", tight: "Just barely fits", does_not_fit: "Doesn't fit" }[d.verdict] || d.verdict;
+  const tot = Math.max(mg.total || 0, mg.available || 0) || 1, pct = v => Math.max(0, Math.min(100, 100 * (v || 0) / tot)).toFixed(1);
+  const speed = meas ? meas.gen_tokens_per_s : d.gen_tokens_per_s;
+  return `<div class="card"><span class="verdict v-${esc(d.verdict)}">${esc(vt)}</span> <span class="small">${esc(d.quant)} · ${(+d.context).toLocaleString("en-US")}-token context</span>
+<div class="stats"><div class="stat"><div class="k">Memory needed</div><div class="v">${mg.total} GB</div><div class="s">of ${mg.available} GB available</div></div>
+<div class="stat"><div class="k">Speed${meas ? '<span class="tag m">measured</span>' : '<span class="tag">estimated</span>'}</div><div class="v">${speed} <span style="font-size:.8rem;font-weight:500">tokens/s</span></div><div class="s">${meas ? esc((meas.runtime || "") + (meas.date ? ", " + meas.date : "")) : (d.partly_on_cpu ? "part runs from system memory" : "from memory bandwidth")}</div></div></div>
+<div style="position:relative"><div class="bar" title="model, context cache, overhead"><i style="width:${pct(mg.weights)}%;background:var(--accent)"></i><i style="width:${pct(mg.context_cache)}%;background:#8fa9ee"></i><i style="width:${pct(mg.overhead)}%;background:#c4cff3"></i></div>${mg.total > mg.available ? `<span title="available" style="position:absolute;top:-4px;bottom:-4px;left:${pct(mg.available)}%;width:2px;background:var(--bad)"></span>` : ""}</div>
+<div class="small">Model ${mg.weights} GB · context cache ${mg.context_cache} GB · overhead ${mg.overhead} GB${mg.total > mg.available ? ` · <b style="color:var(--bad)">${(mg.total - mg.available).toFixed(1)} GB over</b>` : ""}</div>
+${(d.suggestions || []).length ? `<ul class="tips">${d.suggestions.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}</div>`;
+}
+function checkPage(sp, origin) {
+  const out = checkFit(sp);
+  if (out.error) return page("LocalBit - not found", `<h1>Hmm, not sure about that one</h1><div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}<p class="small">${esc(out.text)}</p></div>`, origin);
+  const d = out.data;
+  return page(`Can ${d.model} run on ${d.hardware}? - LocalBit`, `<h1>Can ${esc(d.model)} run on ${esc(d.hardware)}?</h1>${resultCard(out)}
+<div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}</div>`, origin);
 }
 function about(origin) {
   return page("About LocalBit - who runs it, privacy, data license", `<h1>About LocalBit</h1>
+<p class="lede">A small, independent service that answers one question well: will this AI model run on this hardware?</p>
 <h2>Who runs it</h2><p>LocalBit is an independent project by <a href="${OWNER.url}">${OWNER.name}</a> on GitHub. It isn't connected with NVIDIA, AMD, Intel, Apple, Ollama or any model maker.</p>
 <h2>How good the answers are</h2><p>Most answers are <b>estimates</b> from each model's design and each card's published specs. Speeds marked <b>measured</b> come from LocalBit's own RTX 3090 test machine (Windows, Ollama), re-run regularly. Laptop versions of cards are slower than desktop ones, and two-card or CPU-only setups aren't modeled yet. Check before you buy hardware on the strength of an estimate. Every answer says how current its data is.</p>
 <h2>Something wrong?</h2><p>Agents can call the <code>report_issue</code> tool; people can use the form on any result page, or <code>POST ${origin}/api/report</code> with JSON. Real results (tokens/s, memory used, runtime) help most.</p>
@@ -224,6 +291,33 @@ function reportForm(origin, m, g) {
 <p><label>Runtime <input name="runtime" placeholder="Ollama 0.40" size="14"></label> <label>Context <input name="context" inputmode="numeric" size="7"></label></p>
 <p><label>Note (no personal details)<br><textarea name="note" maxlength="500" rows="3" cols="50"></textarea></label></p><p><button>Send report</button></p></form></details>`;
 }
+// (Nov 25, David: "I can't tell if one is better than the other") the measured page leads with two plain charts and a how-to-read
+function charts(ids, byModel, name, origin) {
+  const pick = id => byModel[id].find(x => x.context === 16384) || byModel[id][0];
+  const maxT = Math.max(...ids.map(id => pick(id).gen_tps || 0), 10);
+  const READ = 8;   // tokens/s - about as fast as most people read
+  const words = tps => Math.round(tps * 0.75);
+  const secs = tps => Math.max(1, Math.round(400 / tps));   // a ~300-word answer is ~400 tokens
+  const feel = tps => tps >= 60 ? "instant" : tps >= 25 ? "fast" : tps >= READ ? "comfortable" : "slow";
+  const speed = ids.map(id => { const r = pick(id), w = (100 * r.gen_tps / maxT).toFixed(1);
+    return `<div class="crow" title="${esc(name(id))}: ${r.gen_tps} tokens/s at 16K context - about ${words(r.gen_tps)} words a second">
+<div class="cl"><a href="${origin}/run/${esc(id)}/on/rtx-3090">${esc(name(id))}</a></div>
+<div class="ct"><div class="cb" style="width:${w}%"></div><span class="cv">${(+r.gen_tps).toFixed(0)} tokens/s</span></div>
+<div class="cs">${feel(r.gen_tps)} · a 300-word answer in about ${secs(r.gen_tps)} s</div></div>`; }).join("");
+  const mem = ids.map(id => { const r = pick(id), used = r.gpu_mem_peak_gib || 0, w = (100 * used / 24).toFixed(1);
+    return `<div class="crow" title="${esc(name(id))}: ${used} GB of 24 GB used at 16K context">
+<div class="cl">${esc(name(id))}</div>
+<div class="ct"><div class="cb" style="width:${w}%"></div><span class="cv">${used.toFixed(1)} of 24 GB</span></div>
+<div class="cs">${(24 - used).toFixed(1)} GB left over${24 - used >= 8 ? " - room for a longer context or a second model" : 24 - used >= 3 ? " - room for a longer context" : " - close to full"}</div></div>`; }).join("");
+  return `<div class="card"><h2 style="margin-top:0">How fast does it answer?</h2>
+<p class="small" style="margin-top:0">Words appear at this speed once it starts. Most people read about ${READ} tokens a second, so anything faster than that keeps ahead of you. Slow = below reading speed; comfortable, fast and instant are above it.</p>
+<div class="chart">${speed}</div></div>
+<div class="card"><h2 style="margin-top:0">How much of the 24 GB card does it use?</h2>
+<p class="small" style="margin-top:0">What's left over is room for a longer conversation (more context) or another model at the same time.</p>
+<div class="chart">${mem}</div></div>
+<div class="card"><h2 style="margin-top:0">Which is better?</h2>
+<p style="margin:0">Faster isn't better at everything. Bigger models (more billions of parameters) usually give smarter, more careful answers but run slower and use more memory; small ones are quick but simpler. A good rule: <b>pick the biggest model that's still fast enough for you</b> - anything above reading speed feels fine for chat; for long documents, also look at how fast it reads a prompt.</p></div>`;
+}
 function measuredPage(origin) {
   const rows = measuredFile.measured || [];
   const byModel = {};
@@ -238,10 +332,11 @@ function measuredPage(origin) {
       `<td>${f(at(rs, 16384, "prompt_tps_4k"))}</td><td>${f(mid.gpu_mem_peak_gib, 1)}</td><td>${f(mid.power_w)}</td><td>${f(mid.tokens_per_joule, 2)}</td><td>${esc(mid.date || "")}</td></tr>`; }).join("");
   const any = rows[0] || {};
   return page("Measured: local AI models on an RTX 3090 - LocalBit", `<h1>Measured on an RTX 3090</h1>
-<p>Real runs on LocalBit's own test machine - not estimates. Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
-${ids.length ? `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:.92rem" border="1" cellpadding="6">
-<thead><tr><th>Model</th><th>Tokens/s at 4K context</th><th>at 16K</th><th>at 32K</th><th>Reading a 4K prompt (tokens/s)</th><th>Card memory used (GB, 16K)</th><th>Power (W)</th><th>Tokens per joule</th><th>Measured</th></tr></thead>
-<tbody>${body}</tbody></table></div>` : "<p>No results yet.</p>"}
+<p class="lede">Real runs on LocalBit's own test machine - not estimates. Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. ${ids.length} model${ids.length === 1 ? "" : "s"} so far; more are added overnight.</p>
+${ids.length ? charts(ids, byModel, name, origin) : ""}
+${ids.length ? `<h2>All the numbers</h2><div class="card scroll"><table class="meas">
+<thead><tr><th rowspan="2">Model</th><th colspan="3" style="text-align:center">Tokens/s by context</th><th rowspan="2">Prompt<br>tokens/s</th><th rowspan="2">Memory<br>GB</th><th rowspan="2">Power<br>W</th><th rowspan="2">Tokens<br>per joule</th><th rowspan="2">Date</th></tr><tr><th>4K</th><th>16K</th><th>32K</th></tr></thead>
+<tbody>${body}</tbody></table><div class="meas-note">Prompt = reading a 4,000-token prompt at 16K context. Memory = the whole card's peak at 16K. Power = the card's average while generating.</div></div>` : "<p>No results yet.</p>"}
 <h2>The machine</h2><p>NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
 <h2>Use the data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="https://github.com/adamson-gh/localbit">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
 }
@@ -249,10 +344,13 @@ function pairPage(mid, gid, origin) {
   const m = DATA.models.find(x => x.id === mid), g = DATA.gpus.find(x => x.id === gid);
   if (!m || !g) return null;
   const out = checkFit({ model: m.id, hardware: g.id });
-  const others = DATA.gpus.filter(x => x.id !== g.id && Math.abs(x.vram_gb - g.vram_gb) <= 8).slice(0, 6)
-    .map(x => `<a href="${origin}/run/${m.id}/on/${x.id}">${esc(x.name)}</a>`).join(" · ");
-  return page(`Can ${m.name} run on ${g.name}?`, `<h1>Can ${esc(m.name)} run on ${esc(g.name)}?</h1><pre>${esc(out.text)}</pre>
-<p>Other cards: ${others}</p>${reportForm(origin, m, g)}<p><small>Ask with your own context length: <code>${origin}/api/check?model=${encodeURIComponent(m.id)}&amp;hardware=${encodeURIComponent(g.id)}&amp;context=32768</code></small></p>`, origin);
+  const others = DATA.gpus.filter(x => x.id !== g.id && Math.abs(x.vram_gb - g.vram_gb) <= 8).slice(0, 8)
+    .map(x => `<a href="${origin}/run/${m.id}/on/${x.id}">${esc(x.name.replace(/^NVIDIA GeForce |^AMD Radeon /, ""))}</a>`).join("");
+  return page(`Can ${m.name} run on ${g.name}? - LocalBit`, `<h1>Can ${esc(m.name)} run on ${esc(g.name)}?</h1>${resultCard(out)}
+<h2>Other cards</h2><div class="chips">${others}</div>
+<h2>Different settings?</h2><p class="small">Ask with your own context length: <code>${origin}/api/check?model=${encodeURIComponent(m.id)}&amp;hardware=${encodeURIComponent(g.id)}&amp;context=32768</code></p>
+<h2>What an agent receives</h2><pre class="small">${esc(out.text)}</pre>
+${reportForm(origin, m, g)}`, origin, out.text.split("\n")[0]);
 }
 function llmsTxt(origin) {
   return `# LocalBit\n\n> Will an AI model run on this hardware? Memory needed (weights + context cache) and estimated or measured generation speed for local models on graphics cards and Apple computers.\n\n` +
@@ -313,6 +411,7 @@ export default {
     if (path === "/api/models") return json({ models: DATA.models.map(({ id, name, params_b, active_b, verified }) => ({ id, name, params_b, active_b, verified })) });
     if (path === "/api/hardware") return json({ hardware: DATA.gpus.map(({ id, name, vram_gb, bandwidth_gbs }) => ({ id, name, vram_gb, bandwidth_gbs })) });
     if (path === "/api/measured") return json({ license: "CC BY 4.0 - credit LocalBit", data_as_of: AS_OF, measured: DATA.measured });
+    if (path === "/check") { const o = checkFit(sp); logCall(env, ctx, { kind: "check_page", ua, tool: "check_fit", model_q: sp.model, hw_q: sp.hardware, ...o.log }); return checkPage(sp, origin); }
     if (path === "/measured") { logCall(env, ctx, { kind: "measured", ua }); return measuredPage(origin); }
     if (path === "/about") { logCall(env, ctx, { kind: "about", ua }); return about(origin); }
     if (path === "/llms.txt") { logCall(env, ctx, { kind: "llms_txt", ua }); return new Response(llmsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8" } }); }
