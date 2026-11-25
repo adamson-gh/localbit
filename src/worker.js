@@ -340,7 +340,7 @@ function charts(ids, byModel, name, origin) {
     const size = m.params_b ? `${m.params_b}B parameters` + (m.active_b && m.active_b < m.params_b ? `, ${m.active_b}B active` : "") : "";
     return `<section class="model" id="${esc(v.id)}"><h3><a href="${origin}/run/${esc(v.id)}/on/rtx-3090">${esc(name(v.id))}</a></h3><div class="mmeta">${esc(size)} · ${esc(v.r.quant || "")} · ${esc(v.r.ollama_tag || "")} · ${esc(v.r.date || "")}</div>
 ${row(ICON.speed, "Speed", "", v.speed.toFixed(0), "tokens/s", bar(v.speed, mx("speed"), "cy"), `300 words in about ${Math.max(1, Math.round(400 / v.speed))} s`, "cy")}
-${v.q != null ? row(ICON.quality, "Quality", "", v.q, "% right", bar(v.q, 100, "ck"), ["math", "instructions", "facts", "code"].map(c => `${c} ${(v.qc || {})[c] || 0}/15`).join(" · "), "ck") : row(ICON.quality, "Quality", "", "-", "", bar(0, 100, "ck"), "not checked yet", "ck")}
+${v.q != null ? row(ICON.quality, "Quality", "", v.q, "% right", bar(v.q, 100, "ck"), ["math", "instructions", "facts", "code"].map(c => `${c} ${(v.qc || {})[c] || 0}/15`).join(" · "), "ck") : row(ICON.quality, "Quality", "", "-", "", `<span class="mb"></span>`, "first check runs tonight", "ck")}
 ${v.read != null ? row(ICON.read, "Reading", "lower is better", sec(v.read), "seconds", bar(v.read, mx("read"), "cr"), `wait for a 3,000-word document`, "cr") : ""}
 ${row(ICON.size, "Size", "lower is better", v.size.toFixed(1), "of 24 GB", bar(v.size, 24, "cz"), `${(24 - v.size).toFixed(1)} GB free`, "cz")}
 ${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "Wh", bar(v.wh, mx("wh"), "cb2"), `per 300-word answer · ${Math.round(v.r.power_w)} W`, "cb2") : ""}
