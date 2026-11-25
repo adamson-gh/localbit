@@ -14,6 +14,11 @@ const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [
 const AS_OF = { specs: [gpusFile.updated, modelsFile.updated].filter(Boolean).sort().pop() || null,
                 measured: DATA.measured.map(m => m.date || "").sort().pop() || null };
 const asOfText = () => `Data as of: specs ${AS_OF.specs}` + (AS_OF.measured ? `, newest measurement ${AS_OF.measured}` : "") + ".";
+// (Nov 25 check: a spike was ClaudeBot reading all ~800 model/card pages) search and AI crawlers, counted apart from real asks
+const CRAWLERS = ["ClaudeBot", "Claude-SearchBot", "GPTBot", "OAI-SearchBot", "Googlebot", "Google-Extended", "bingbot", "Applebot", "PerplexityBot",
+  "Meta-ExternalAgent", "Amazonbot", "Bytespider", "CCBot", "DuckAssistBot", "YandexBot", "Baiduspider", "BrickBlueBot", "AhrefsBot", "SemrushBot"];
+const NOT_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') NOT LIKE '%${c}%'`).join(" AND ") + ")";
+const IS_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') LIKE '%${c}%'`).join(" OR ") + ")";
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26"];
 const KNOWN_AGENTS = ["ChatGPT-User", "OAI-SearchBot", "GPTBot", "Claude-User", "Claude-SearchBot", "ClaudeBot", "Claude-Code", "Perplexity-User",
   "PerplexityBot", "Google-Extended", "Googlebot", "bingbot", "Applebot", "Meta-ExternalAgent", "Amazonbot", "Bytespider", "CCBot", "DuckAssistBot",
@@ -506,10 +511,12 @@ async function stats(request, env) {
   return json({ days, estimate_drift: drift,
     by_day: await q("SELECT substr(ts,1,10) day, count(*) n FROM calls WHERE ts >= ? GROUP BY day ORDER BY day"),
     by_kind: await q("SELECT kind, count(*) n FROM calls WHERE ts >= ? GROUP BY kind ORDER BY n DESC"),
-    by_agent: await q("SELECT coalesce(nullif(client,''), ua) agent, count(*) n FROM calls WHERE ts >= ? GROUP BY agent ORDER BY n DESC LIMIT 25"),
+    by_agent: await q(`SELECT coalesce(nullif(client,''), ua) agent, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} GROUP BY agent ORDER BY n DESC LIMIT 25`),
+    crawlers: await q(`SELECT ua crawler, count(*) n FROM calls WHERE ts >= ? AND ${IS_CRAWL} GROUP BY ua ORDER BY n DESC LIMIT 15`),
+    crawl_total: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND ${IS_CRAWL}`))[0]?.n || 0,
     by_tool: await q("SELECT tool, count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL GROUP BY tool ORDER BY n DESC"),
-    top_models: await q("SELECT coalesce(model_id, model_q) model, count(*) n FROM calls WHERE ts >= ? AND (model_id IS NOT NULL OR model_q IS NOT NULL) GROUP BY model ORDER BY n DESC LIMIT 25"),
-    top_hardware: await q("SELECT coalesce(gpu_id, hw_q) hardware, count(*) n FROM calls WHERE ts >= ? AND (gpu_id IS NOT NULL OR hw_q IS NOT NULL) GROUP BY hardware ORDER BY n DESC LIMIT 25"),
+    top_models: await q(`SELECT coalesce(model_id, model_q) model, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (model_id IS NOT NULL OR model_q IS NOT NULL) GROUP BY model ORDER BY n DESC LIMIT 25`),
+    top_hardware: await q(`SELECT coalesce(gpu_id, hw_q) hardware, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (gpu_id IS NOT NULL OR hw_q IS NOT NULL) GROUP BY hardware ORDER BY n DESC LIMIT 25`),
     reports_by_problem: await q("SELECT problem, count(*) n FROM reports WHERE ts >= ? GROUP BY problem ORDER BY n DESC").catch(() => []),
     recent_reports: await q("SELECT ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note FROM reports WHERE ts >= ? ORDER BY ts DESC LIMIT 25").catch(() => []),
     unknown_asks: await q("SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND (verdict = 'unknown' OR model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 25"),
