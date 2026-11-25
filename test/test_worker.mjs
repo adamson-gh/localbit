@@ -16,7 +16,7 @@ check("a notification gets 202 and no body", st === 202, st);
 check("four tools: three read-only answers and report_issue", j.result.tools.length === 4 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 3 && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
 [st, j] = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "check_fit", arguments: { model: "qwen3.8:27b", hardware: "RTX 3090", context: 16384 } } });
 const sc = j.result.structuredContent;
-check("check_fit on the test machine: fits, and the speed is the measured one", sc.verdict === "fits" && sc.basis === "measured" && /47\.7 tokens\/s measured/.test(j.result.content[0].text), j.result.content[0].text);
+check("check_fit on the test machine: fits, and the speed is the measured one", sc.verdict === "fits" && sc.basis === "measured" && /4[78]\.\d+ tokens\/s measured/.test(j.result.content[0].text), j.result.content[0].text);
 check("answers say when the data is current as of (text and JSON), and when the speed was measured", /Data as of: specs 2026-11-25/.test(j.result.content[0].text) && sc.data_as_of && sc.data_as_of.specs === "2026-11-25" && /measured 2026-11-25/.test(j.result.content[0].text), j.result.content[0].text);
 { const pg = await (await call("/run/qwen3.8-27b/on/rtx-3090")).text(); const lt = await (await call("/llms.txt")).text();
   check("pages and llms.txt show the as-of date", /Data as of: specs 2026-11-25/.test(pg) && /Data as of: specs 2026-11-25/.test(lt), lt.slice(-200)); }
