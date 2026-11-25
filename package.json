@@ -1,0 +1,20 @@
+{
+  "name": "localbit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Will this AI model run on this hardware? A public MCP server and API for AI agents.",
+  "type": "module",
+  "scripts": {
+    "test": "node test/test_estimate.mjs && node test/test_worker.mjs && python test/test_bench.py",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adamson-gh/localbit"
+  }
+}

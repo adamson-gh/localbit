@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.adamson-gh/localbit",
+  "title": "LocalBit",
+  "description": "Will this AI model run on your GPU or Mac? Memory needed and estimated or measured speed.",
+  "version": "0.2.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://localbit.adamson-cf.workers.dev/mcp"
+    }
+  ],
+  "websiteUrl": "https://localbit.adamson-cf.workers.dev/about",
+  "repository": {
+    "url": "https://github.com/adamson-gh/localbit",
+    "source": "github"
+  }
+}

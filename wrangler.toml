@@ -1,0 +1,25 @@
+﻿name = "localbit"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+# The log. Create it once with:  npx wrangler d1 create localbit   then paste the id it prints below,
+# and load the table with:        npx wrangler d1 execute localbit --remote --file=schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "localbit"
+database_id = "98a37297-a448-4cef-b12a-d8615d50781a"
+
+# The owner's key for /stats is a secret, set with:  npx wrangler secret put STATS_KEY
+
+# Rate limits (Cloudflare's limiter keys on the caller's address for a moment; LocalBit never stores it).
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "REPORTS"
+namespace_id = "1002"
+simple = { limit = 5, period = 60 }

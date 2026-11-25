@@ -1,0 +1,23 @@
+// LocalBit: the estimates against what's known - the measured test machine, and sane bounds. node test/test_estimate.mjs
+import fs from "fs";
+import * as E from "../src/estimate.js";
+const M = JSON.parse(fs.readFileSync(new URL("../data/models.json", import.meta.url))), G = JSON.parse(fs.readFileSync(new URL("../data/gpus.json", import.meta.url)));
+const data = { models: M.models, quants: M.quants, gpus: G.gpus, measured: M.measured };
+let ok = 0, bad = 0;
+const check = (name, cond, got) => { cond ? ok++ : bad++; console.log((cond ? "PASS " : "FAIL ") + name + (cond ? "" : "  got: " + JSON.stringify(got))); };
+const est = (m, g, o = {}) => E.estimate(E.findModel(m, data.models), E.findGpu(g, data.gpus), o, data.quants);
+let e = est("qwen3.8:27b", "rtx 3090", { context: 16384, kv_cache: "q8_0" });
+check("the test machine: memory within 0.5 GB of what Ollama reported (16.2 GB)", Math.abs(e.memory_gb.total - 16.2) <= 0.5, e.memory_gb);
+check("the test machine: speed within 15% of measured (47.7 tok/s)", Math.abs(e.gen_tokens_per_s - 47.7) / 47.7 <= 0.15, e.gen_tokens_per_s);
+check("an 8B model fits an 8 GB card at 8K", est("llama 3.1 8b", "rtx 4060").verdict === "fits");
+check("a 70B model doesn't fit one 24 GB card", est("llama 3.3 70b", "rtx 4090").verdict === "does_not_fit");
+check("a 70B model fits a 128 GB M4 Max", est("llama 70b", "m4 max").verdict === "fits");
+check("more context needs more memory", est("qwen3 14b", "4090", { context: 32768 }).memory_gb.context_cache > est("qwen3 14b", "4090", { context: 4096 }).memory_gb.context_cache);
+check("sliding-window layers keep the cache small (Gemma 3 vs a same-size dense model at 32K)", est("gemma3:27b", "4090", { context: 32768 }).memory_gb.context_cache < est("qwen2.5:32b", "4090", { context: 32768 }).memory_gb.context_cache);
+check("a mixture-of-experts model is faster than a dense one of similar size", est("qwen3:30b", "4090").gen_tokens_per_s > est("qwen3:32b", "4090").gen_tokens_per_s);
+check("Q8 needs more memory than Q4", est("qwen3 8b", "4090", { quant: "Q8_0" }).memory_gb.weights > est("qwen3 8b", "4090", { quant: "Q4_K_M" }).memory_gb.weights);
+check("names: '4060 ti 16gb' is the 16 GB card, '4060 ti' alone the 8 GB one", E.findGpu("RTX 4060 Ti 16GB", data.gpus).id === "rtx-4060-ti-16" && E.findGpu("4060 ti", data.gpus).id === "rtx-4060-ti-8");
+check("names: 'qwen3:30b' is the mixture-of-experts model, not Qwen3 32B", E.findModel("qwen3:30b", data.models).id === "qwen3-30b-a3b");
+check("a size alone gives a generic estimate", E.findModel("some 13B model", data.models).matched === "generic");
+check("memory alone gives a generic card", E.findGpu("a 12 GB card", data.gpus).vram_gb === 12);
+console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

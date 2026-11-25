@@ -1,0 +1,18 @@
+# Models LocalBit measures overnight on the RTX 3090. Only names listed here are ever downloaded (Ollama registry).
+# Approved Nov 25, 2026. Models downloaded for the test are removed after measuring (bench/config.json remove_after).
+# Already on the machine (kept):
+qwen3.8:27b
+gemma4:e4b
+phi4:14b
+# Downloaded for the test, removed after measuring:
+llama3.2:3b
+llama3.1:8b
+qwen3:8b
+gemma3:12b
+qwen3:14b
+deepseek-r1:14b
+gpt-oss:20b
+mistral-small:24b
+gemma3:27b
+qwen3:30b
+qwen3:32b
