@@ -421,7 +421,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{border-bottom:1px solid var(--line);background:var(--bg)}header .in,main,footer .in{max-width:880px;margin:0 auto;padding:0 20px}
 header .in{display:flex;align-items:center;justify-content:space-between;height:58px;gap:16px}
 .logo{font-weight:750;font-size:1.15rem;letter-spacing:-.01em;color:var(--ink)}.logo b{color:var(--accent)}
-nav a{color:var(--mute);margin-left:18px;font-size:.95rem;white-space:nowrap}@media (max-width:620px){header .in{height:auto;padding-top:10px;padding-bottom:10px;flex-wrap:wrap;gap:4px 12px}nav a{margin:0 12px 0 0;font-size:.88rem}}nav a:hover{color:var(--ink)}
+nav{display:flex;flex-wrap:wrap;justify-content:flex-end;row-gap:2px}nav a{color:var(--mute);margin-left:18px;font-size:.95rem;white-space:nowrap}@media (max-width:620px){nav{justify-content:flex-start}header .in{height:auto;padding-top:10px;padding-bottom:10px;flex-wrap:wrap;gap:4px 12px}nav a{margin:0 12px 0 0;font-size:.88rem}}nav a:hover{color:var(--ink)}
 main{padding:34px 20px 20px}h1{font-size:1.9rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}h2{font-size:1.15rem;margin:34px 0 10px}
 .lede{color:var(--mute);font-size:1.08rem;max-width:640px;margin:0 0 24px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:16px 0}
@@ -438,7 +438,7 @@ button,.btn{font:inherit;font-weight:600;padding:11px 18px;border:0;border-radiu
 ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.grid3 .card{margin:0}
 .grid3 h3{margin:0 0 6px;font-size:1rem}.grid3 p{margin:0;color:var(--mute);font-size:.94rem}
-code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
+code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere}main,.card{min-width:0;overflow-wrap:anywhere}table{max-width:100%}.scroll{overflow-x:auto}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
 table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
 .scroll{overflow-x:auto}.jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 6px;font-size:.92rem}.jump a{margin-left:0;color:var(--mute);border-bottom:1px dotted var(--line)}.jump a:hover{color:var(--ink);text-decoration:none}
@@ -465,7 +465,7 @@ th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:fi
 .readline{position:absolute;top:0;bottom:0;left:calc(164px + (100% - 164px) * var(--read, 0));border-left:2px dashed var(--mute);pointer-events:none}
 .readline span{position:absolute;top:-18px;left:4px;font-size:.72rem;color:var(--mute);white-space:nowrap}
 @media (max-width:560px){.crow{grid-template-columns:1fr}.cs{grid-column:1}.readline{display:none}}table.meas td:first-child{min-width:170px}table.meas td:nth-child(3){font-weight:700}.meas-note{color:var(--mute);font-size:.82rem;margin-top:10px}.small{color:var(--mute);font-size:.88rem}.chips a{display:inline-block;margin:4px 6px 4px 0;padding:5px 11px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--ink)}
-details summary{cursor:pointer;color:var(--accent);font-weight:600}details form p{margin:10px 0}details input,details select,details textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+details summary{cursor:pointer;color:var(--accent);font-weight:600}details form p{margin:10px 0}details input,details select,details textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;max-width:100%;box-sizing:border-box}form input,form select{max-width:100%;box-sizing:border-box}
 footer{border-top:1px solid var(--line);margin-top:40px}footer .in{padding:18px 20px;color:var(--mute);font-size:.85rem;display:flex;flex-wrap:wrap;gap:6px 16px}`;
 function page(title, body, origin, desc) {
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
