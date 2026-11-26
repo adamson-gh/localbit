@@ -18,9 +18,9 @@ check("nine tools: seven read-only answers, report_issue and submit_result", j.r
 [st, j] = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "check_fit", arguments: { model: "qwen3.8:27b", hardware: "RTX 3090", context: 16384 } } });
 const sc = j.result.structuredContent;
 check("check_fit on the test machine: fits, and the speed is the measured one", sc.verdict === "fits" && sc.basis === "measured" && /4[78]\.\d+ tokens\/s measured/.test(j.result.content[0].text), j.result.content[0].text);
-check("answers say when the data is current as of (text and JSON), and when the speed was measured", /Data as of: specs 2026-11-25/.test(j.result.content[0].text) && sc.data_as_of && sc.data_as_of.specs === "2026-11-25" && /measured 2026-11-25/.test(j.result.content[0].text), j.result.content[0].text);
+check("answers say when the data is current as of (text and JSON), and when the speed was measured", /Data as of: specs 20\d\d-\d\d-\d\d/.test(j.result.content[0].text) && sc.data_as_of && sc.data_as_of.specs === JSON.parse(fs.readFileSync(new URL("../data/gpus.json", import.meta.url))).updated && /measured 2026-11-25/.test(j.result.content[0].text), j.result.content[0].text);
 { const pg = await (await call("/run/qwen3.8-27b/on/rtx-3090")).text(); const lt = await (await call("/llms.txt")).text();
-  check("pages and llms.txt show the as-of date", /Data as of: specs 2026-11-25/.test(pg) && /Data as of: specs 2026-11-25/.test(lt), lt.slice(-200)); }
+  check("pages and llms.txt show the as-of date", /Data as of: specs 20\d\d-\d\d-\d\d/.test(pg) && /Data as of: specs 20\d\d-\d\d-\d\d/.test(lt), lt.slice(-200)); }
 [st, j] = await rpc({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "check_fit", arguments: { model: "Llama 3.3 70B", hardware: "rtx 3090" } } });
 check("70B on a 3090: doesn't fit, partly on the processor, with ways forward", j.result.structuredContent.verdict === "does_not_fit" && j.result.structuredContent.partly_on_cpu && j.result.structuredContent.suggestions.length > 0, j.result.structuredContent);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "check_fit", arguments: { model: "made-up-model", hardware: "made-up card" } } });

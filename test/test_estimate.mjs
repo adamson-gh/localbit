@@ -20,4 +20,9 @@ check("names: '4060 ti 16gb' is the 16 GB card, '4060 ti' alone the 8 GB one", E
 check("names: 'qwen3:30b' is the mixture-of-experts model, not Qwen3 32B", E.findModel("qwen3:30b", data.models).id === "qwen3-30b-a3b");
 check("a size alone gives a generic estimate", E.findModel("some 13B model", data.models).matched === "generic");
 check("memory alone gives a generic card", E.findGpu("a 12 GB card", data.gpus).vram_gb === 12);
+{ const L = await import("../src/estimate.js");
+  const f = q => L.findModel(q, data.models);
+  check("a misspelled model name finds the known model (lama3.1 8b -> Llama 3.1 8B)", f("lama3.1 8b")?.id === "llama-3.1-8b", f("lama3.1 8b"));
+  check("a typo never changes the size (llama 3.1 80b stays unknown, not 8B/70B)", !["llama-3.1-8b", "llama-3.1-70b"].includes(f("llama 3.1 80b")?.id), f("llama 3.1 80b")?.id);
+  check("an invented model is still unknown", f("zephyrion 40b")?.matched === "generic"); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-25",
+ "updated": "2026-11-26",
  "_about": "Graphics cards and unified-memory computers LocalBit knows. vram_gb = memory a model can use; bandwidth_gbs = memory bandwidth from the maker's spec sheet (GB/s), which sets generation speed. Apple machines: the GPU can use about 75% of unified memory by default (usable_fraction). Add a row when a card is missing.",
  "gpus": [
   {
@@ -100,6 +100,18 @@
    "aliases": [
     "4070 ti super",
     "rtx 4070 ti super"
+   ]
+  },
+  {
+   "id": "rtx-4070-ti",
+   "name": "NVIDIA GeForce RTX 4070 Ti",
+   "vendor": "nvidia",
+   "vram_gb": 12,
+   "bandwidth_gbs": 504,
+   "aliases": [
+    "4070 ti",
+    "rtx 4070 ti",
+    "4070ti"
    ]
   },
   {

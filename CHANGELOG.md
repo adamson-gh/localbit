@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 - 2026-11-26
+- Added the RTX 4070 Ti (12 GB, 504 GB/s).
+- A misspelled model name ("lama3.1 8b") now finds the known model - only when every number matches.
+- `/api/list_known` works as an address (a newcomer agent guessed it).
+- Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
+
 ## 0.4.0 - 2026-11-26
 - Contributions: a 3-minute test (`/test`, `/test.py`, `/recipe.json`) measures a model on your own machine with the node's recipe, shows exactly what it would send and asks first.
 - New tools: `get_test_kit`, `submit_result` (checked against the estimate; plausible results published as community, others flagged), `get_details` (full specs plus node and community measurements).

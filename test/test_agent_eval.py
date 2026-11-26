@@ -11,6 +11,11 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _j(self, o):
         b = json.dumps(o).encode(); self.send_response(200); self.send_header("content-type", "application/json"); self.end_headers(); self.wfile.write(b)
+    def do_GET(self):
+        uas.add(self.headers.get("user-agent", ""))
+        if self.path.startswith("/api/check"): return self._j({"verdict": "fits", "gen_tokens_per_s": 40.2, "memory_gb": {"total": 5.9}})
+        if self.path.startswith("/api/details"): return self._j({"hardware": {"memory_gb": 12, "bandwidth_gbs": 504}})
+        self._j({})
     def do_POST(self):
         uas.add(self.headers.get("user-agent", "")); b = json.loads(self.rfile.read(int(self.headers["content-length"])))
         if self.path == "/mcp":
@@ -30,7 +35,7 @@ out = Path(tempfile.mkdtemp()) / "eval.json"
 r = subprocess.run([sys.executable, str(ROOT / "bench" / "agent_eval.py"), "--mode", "connected", "--only", "fit,details,share_yes,share_no"], capture_output=True, text=True, timeout=60,
                    env=dict(os.environ, LOCALBIT_SITE=url, LOCALBIT_OLLAMA=url, LOCALBIT_EVAL_OUT=str(out)))
 srv.shutdown()
-res = {x["id"]: x for x in json.loads(out.read_text())["results"]} if out.exists() else {}
+res = {x["id"]: x for x in json.loads(out.read_text())["runs"]["qwen3.8:27b"]["results"]} if out.exists() else {}
 ok = bad = 0
 def check(name, cond, got=""):
     global ok, bad
@@ -41,5 +46,6 @@ check("the right tool with an answer passes", res.get("fit", {}).get("pass") is 
 check("the wrong tool fails, saying what was expected", res.get("details", {}).get("pass") is False and "expected" in res["details"]["why"][0], res.get("details"))
 check("sharing when asked passes; sharing unasked fails", res.get("share_yes", {}).get("pass") is True and res.get("share_no", {}).get("pass") is False, (res.get("share_yes"), res.get("share_no")))
 check("submit_result is never forwarded to LocalBit", "submit_result" not in forwarded and "check_fit" in forwarded, forwarded)
+check("numbers are graded against LocalBit's own answer (40 vs 40.2 passes)", res.get("fit", {}).get("pass") is True and "called submit_result without being asked to share" in res.get("share_no", {}).get("why", []), res.get("share_no"))
 check("every request says it's the owner's test", all("localbit-self-test" in u for u in uas) and uas, uas)
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)

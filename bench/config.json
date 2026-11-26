@@ -1,1 +1,6 @@
-{"remove_after": true}
+{
+ "remove_after": true,
+ "eval_models": [
+  "gemma4:e4b"
+ ]
+}

@@ -16,19 +16,81 @@ UA = "localbit-self-test/1 (owner's fresh-agent test)"
 NEVER_FORWARD = {"submit_result", "report_issue"}
 SYSTEM = "You are a helpful assistant. You have tools; use them when they help, and don't guess numbers you can look up. Answer the user in a few sentences."
 
-# (id, question, tools that count as the right choice (any one), must-call-not, the final answer must match)
+# Each task: the question, the tools that count as a right choice (any one; empty = any), tools it must not call, and what the
+# final answer must get right - checked against LocalBit's own answer, fetched at run time, so the grade follows the data.
+Q = urllib.parse.quote
 TASKS = [
-    ("fit", "Will Llama 3.1 8B run on my RTX 4060? How fast would it be?", {"check_fit", "compare"}, set(), r"token"),
-    ("too_big", "Can I run Llama 3.1 70B on a graphics card with 8 GB?", {"check_fit"}, set(), r"\b(no|not|won't|doesn't|does not|can't|cannot|too)\b"),
-    ("suggest", "I have an RTX 3090 with 24 GB. What's the best model I can run with a 16K context?", {"suggest_models"}, set(), r"\w"),
-    ("compare", "Would Qwen3 32B be faster on an RTX 4090 or on an M4 Max?", {"compare", "check_fit"}, set(), r"4090|M4"),
-    ("details", "How much memory and memory bandwidth does an RTX 4070 Ti have?", {"get_details", "list_known", "check_fit"}, set(), r"GB"),
-    ("browse_names", "Which AMD graphics cards can you answer questions about?", {"list_known"}, set(), r"(?i)rx|radeon"),
-    ("help_measure", "I have an RX 7900 XTX that nobody seems to have benchmarked for local models. How can I help measure it?", {"get_test_kit"}, {"submit_result"}, r"(?i)test\.py|/test|script"),
-    ("share_yes", "I ran your 3-minute test: llama3.1:8b Q4_K_M on an NVIDIA GeForce RTX 4060 (8 GB), Ollama 0.40, Windows - 41 tokens/s at 4096 context and 38 at 16384, all on the GPU. Yes, please share these results.",
-     {"submit_result"}, set(), r"\w"),
-    ("share_no", "I measured 41 tokens/s for Llama 3.1 8B on my RTX 4060. Is that normal?", {"check_fit", "get_details", "compare"}, {"submit_result"}, r"\w"),
+    dict(id="fit", q="Will Llama 3.1 8B run on my RTX 4060? How fast would it be?", want={"check_fit", "compare"},
+         truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 8b"), Q("rtx 4060")), ["yes", "speed"])),
+    dict(id="too_big", q="Can I run Llama 3.1 70B on a graphics card with 8 GB?", want={"check_fit"},
+         truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 70b"), Q("8 GB")), ["no", "memory"])),
+    dict(id="suggest", q="I have an RTX 3090 with 24 GB. What's the best model I can run with a 16K context?", want={"suggest_models"},
+         truth=("/api/suggest?hardware=%s&context=16384" % Q("rtx 3090"), ["top_model"])),
+    dict(id="compare", q="Would Qwen3 32B be faster on an RTX 4090 or on an M4 Max?", want={"compare", "check_fit"},
+         truth=("/api/compare?a_model=%s&a_hardware=%s&b_hardware=%s" % (Q("qwen3 32b"), Q("rtx 4090"), Q("m4 max")), ["faster"])),
+    dict(id="details", q="How much memory and memory bandwidth does an RTX 4070 Ti have?", want={"get_details", "list_known", "check_fit"},
+         truth=("/api/details?name=%s" % Q("rtx 4070 ti"), ["mem_bw"])),
+    dict(id="browse_names", q="Which AMD graphics cards can you answer questions about?", want={"list_known"},
+         truth=("/api/hardware", ["amd_names"])),
+    dict(id="typo", q="will lama3.1 8b run on a rtx4060ti 16gb", want={"check_fit"},
+         truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 8b"), Q("rtx 4060 ti 16gb")), ["yes", "speed"])),
+    dict(id="two_cards", q="Can two RTX 3090s together run Llama 3.1 70B? How fast?", want={"check_fit", "compare"},
+         truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 70b"), Q("2x rtx 3090")), ["yes", "speed"])),
+    dict(id="mac", q="I have a MacBook Pro with an M3 Pro and 18 GB of memory. Will Qwen3 14B run on it, and how fast?", want={"check_fit"},
+         truth=("/api/check?model=%s&hardware=%s" % (Q("qwen3 14b"), Q("m3 pro 18gb")), ["yes", "speed"])),
+    dict(id="long_context", q="How much memory does Qwen3.8 27B need with a 32K context on an RTX 3090?", want={"check_fit"},
+         truth=("/api/check?model=%s&hardware=%s&context=32768" % (Q("qwen3.8 27b"), Q("rtx 3090")), ["memory"])),
+    dict(id="unknown_model", q="Will the Zephyrion 40B model run on my RTX 4090?", want=set(), truth=(None, ["admits_unknown"])),
+    dict(id="help_measure", q="I have an RX 7900 XTX that nobody seems to have benchmarked for local models. How can I help measure it?",
+         want={"get_test_kit"}, forbid={"submit_result"}, truth=(None, ["test_script"])),
+    dict(id="share_yes", q="I ran your 3-minute test: llama3.1:8b Q4_K_M on an NVIDIA GeForce RTX 4060 (8 GB), Ollama 0.40, Windows - 41 tokens/s at 4096 context and 38 at 16384, all on the GPU. Yes, please share these results.",
+         want={"submit_result"}, truth=(None, [])),
+    dict(id="share_no", q="I measured 41 tokens/s for Llama 3.1 8B on my RTX 4060. Is that normal?", want={"check_fit", "get_details", "compare"},
+         forbid={"submit_result"}, truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 8b"), Q("rtx 4060")), ["speed"])),
 ]
+
+
+def nums(text):
+    return [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*(?:\.\d+)?", text)]
+
+
+def near(text, target, tol=0.1):
+    return target is not None and any(abs(n - target) <= max(tol * abs(target), 0.15) for n in nums(text))
+
+
+def grade_truth(kinds, t, final):
+    """What the final answer must get right, against LocalBit's own answer t. Returns the misses."""
+    miss, f = [], final
+    for k in kinds:
+        if k == "yes" and t.get("verdict") in ("fits", "tight") and re.search(r"(?i)\b(won't|doesn't|does not|can't|cannot) (fit|run)", f):
+            miss.append("said it won't fit; LocalBit says %s" % t.get("verdict"))
+        elif k == "no" and not re.search(r"(?i)\b(no|not|won't|doesn't|does not|can't|cannot|too (big|large|small))\b", f):
+            miss.append("didn't say it won't fit")
+        elif k == "speed" and not near(f, t.get("gen_tokens_per_s")):
+            miss.append("speed: LocalBit says %s tokens/s" % t.get("gen_tokens_per_s"))
+        elif k == "memory" and not near(f, ((t.get("memory_gb") or {}).get("total")), 0.1):
+            miss.append("memory: LocalBit says %s GB" % (t.get("memory_gb") or {}).get("total"))
+        elif k == "top_model":
+            top = ((t.get("models") or [{}])[0].get("model") or "").split(" (")[0]
+            if top and top.lower() not in f.lower(): miss.append("didn't name LocalBit's top pick, %s" % top)
+        elif k == "faster":
+            a, b = t.get("a") or {}, t.get("b") or {}
+            win = a if (a.get("gen_tokens_per_s") or 0) >= (b.get("gen_tokens_per_s") or 0) else b
+            key = re.sub(r"^(NVIDIA GeForce |AMD Radeon |Apple )", "", win.get("hardware") or "").split(" (")[0]
+            said = [s for s in re.split(r"(?<=[.!?\n])\s+", f) if re.search(r"(?i)faster|quicker|wins|better", s)]
+            if not key or not any(key.lower() in s.lower() for s in said): miss.append("didn't say the %s is faster" % key)
+        elif k == "mem_bw":
+            h = t.get("hardware") or {}
+            if not (near(f, h.get("memory_gb"), 0.01) and near(f, h.get("bandwidth_gbs"), 0.02)): miss.append("specs: LocalBit says %s GB, %s GB/s" % (h.get("memory_gb"), h.get("bandwidth_gbs")))
+        elif k == "amd_names":
+            names = [re.sub(r"^AMD Radeon ", "", h["name"]) for h in t.get("hardware") or [] if h.get("name", "").startswith("AMD")]
+            got = sum(1 for n in names if n.lower() in f.lower())
+            if got < max(1, len(names) * 2 // 3): miss.append("named %d of LocalBit's %d AMD cards" % (got, len(names)))
+        elif k == "admits_unknown" and not re.search(r"(?i)(not (known|listed|in|recogni[sz]ed|found)|doesn't (know|recogni[sz]e|have|list)|don't (know|have)|unknown|couldn't find|no (data|record|entry)|generic|typical|based on (its|the) size)", f):
+            miss.append("didn't say the model is unknown to LocalBit")
+        elif k == "test_script" and not re.search(r"(?i)test\.py|/test\b|script", f):
+            miss.append("didn't point to the test")
+    return miss
 
 
 def post(url, body, headers=None, timeout=60):
@@ -65,8 +127,19 @@ def chat(model, messages, tools):
     return r.get("message") or {}
 
 
+def truth_for(task):
+    path = task["truth"][0]
+    if not path:
+        return {}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(SITE + path, headers={"user-agent": UA}), timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
 def run_task(model, mode, tools, task):
-    tid, q, want, forbid, must = task
+    tid, q, want, forbid = task["id"], task["q"], task.get("want", set()), task.get("forbid", set())
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": q if mode == "connected" else q + "\n\n(A site that may help: %s)" % SITE}]
     calls, t0 = [], time.time()
@@ -99,15 +172,18 @@ def run_task(model, mode, tools, task):
     used = {c["tool"] for c in calls}
     why = []
     if mode == "connected":
-        if not used & want: why.append("expected %s, used %s" % ("/".join(sorted(want)), ", ".join(c["tool"] for c in calls) or "no tool"))
+        if want and not used & want: why.append("expected %s, used %s" % ("/".join(sorted(want)), ", ".join(c["tool"] for c in calls) or "no tool"))
         if used & forbid: why.append("called %s without being asked to share" % "/".join(sorted(used & forbid)))
         if tid == "share_yes" and "submit_result" in used:
             a = next(c["args"] for c in calls if c["tool"] == "submit_result")
             if not (a.get("model") and a.get("hardware") and isinstance(a.get("results"), list) and len(a["results"]) >= 2): why.append("submit_result missing model, hardware or both results")
     elif calls and not any(re.search(r"/mcp|/api/|llms\.txt|/run/|/check|/test|/measured", json.dumps(c["args"])) for c in calls):
         why.append("never got past the home page")
-    if not final: why.append("no final answer")
-    elif not re.search(must, final, re.I): why.append("final answer missing what was asked")
+    if not final:
+        why.append("no final answer")
+    elif not (tid == "share_yes" and mode == "browsing"):
+        tr = truth_for(task)
+        why += ["couldn't fetch LocalBit's own answer to grade against"] if tr is None else grade_truth(task["truth"][1], tr, final)
     return {"id": tid, "mode": mode, "pass": not why, "why": why, "calls": calls[:10], "answer": final[:600], "seconds": round(time.time() - t0)}
 
 
@@ -117,7 +193,7 @@ def main(argv=None):
     ap.add_argument("--mode", default="both", choices=["connected", "browsing", "both"])
     ap.add_argument("--only", default="")
     a = ap.parse_args(argv)
-    tasks = [t for t in TASKS if not a.only or t[0] in a.only.split(",")]
+    tasks = [t for t in TASKS if not a.only or t["id"] in a.only.split(",")]
     mcp("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "localbit-self-test", "version": "1"}})
     listed = mcp("tools/list")["result"]["tools"]
     mcp_tools = [{"type": "function", "function": {"name": t["name"], "description": t.get("description", ""), "parameters": t.get("inputSchema") or {"type": "object", "properties": {}}}} for t in listed]
@@ -128,7 +204,12 @@ def main(argv=None):
             results.append(r)
             print("EVAL %s %-13s %s %s" % (mode, r["id"], "PASS" if r["pass"] else "FAIL", "; ".join(r["why"])), flush=True)
     summary = {m: "%d/%d" % (sum(r["pass"] for r in results if r["mode"] == m), sum(1 for r in results if r["mode"] == m)) for m in {r["mode"] for r in results}}
-    OUT.write_text(json.dumps({"date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "model": a.model, "tools_seen": len(listed), "summary": summary, "results": results}, indent=1), encoding="utf-8")
+    try:
+        runs = json.loads(OUT.read_text(encoding="utf-8")).get("runs", {})
+    except (OSError, ValueError):
+        runs = {}
+    runs[a.model] = {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "model": a.model, "tools_seen": len(listed), "tasks": len(tasks), "summary": summary, "results": results}
+    OUT.write_text(json.dumps({"runs": runs}, indent=1), encoding="utf-8")   # one entry per model, newest run of each
     print("EVAL SUMMARY", json.dumps(summary))
 
 

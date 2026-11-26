@@ -80,11 +80,38 @@ export function familyOf(q, models) {
   if (!sq || /\d+(\.\d+)?b$/.test(sq)) return [];
   return models.filter(m => squash(m.name).startsWith(sq) && /^\d/.test(squash(m.name).slice(sq.length).replace(/^[a-z]?/, "")));
 }
+// (Nov 26, fresh-agent test: "lama3.1 8b" was sized as an unknown 8B model) a slip of a letter or two in the name matches the
+// known model - only when every number agrees, so "8b" never becomes "70b"
+function edits(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+export function typoMatch(q, rows) {
+  const sq = squash(q), nums = s => (norm(s).match(/\d+(?:\.\d+)?/g) || []).join(",");
+  if (sq.length < 6) return null;
+  let best = null, bestD = 3;
+  for (const r of rows) for (const a of [r.name, ...(r.aliases || [])]) {
+    if (nums(a) !== nums(q)) continue;
+    const d = edits(sq, squash(a));
+    if (d < bestD && d <= (sq.length >= 10 ? 2 : 1)) { best = r; bestD = d; }
+  }
+  if (!best) return null;
+  const { __alias, ...row } = best;
+  return row;
+}
 export function findModel(q, models) {
   const fam = familyOf(q, models);
   if (fam.length === 1 && !bestMatch(q, models)) return { ...fam[0], matched: "known", family_only: q };
   const mdl = bestMatch(q, models);
   if (mdl) { const via = viaAlias(q, mdl); const { __alias, ...row } = mdl; return { ...row, matched: "known", ...(via ? { asked_as: q } : {}) }; }
+  const ty = typoMatch(q, models);
+  if (ty) return { ...ty, matched: "known", asked_as: q };
   const m = norm(q).match(/(\d+(?:\.\d+)?)\s*b\b/);
   if (m) {   // "some 13B model" - size known, design not: a typical dense model of that size
     const p = +m[1];

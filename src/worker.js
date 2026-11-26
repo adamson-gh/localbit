@@ -11,7 +11,7 @@ import recipeFile from "../data/recipe.json" with { type: "json" };
 import TEST_SCRIPT from "./generated/test_script.js";
 import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest, familyOf } from "./estimate.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const SITE = siteFile.site;
 const OWNER = { name: siteFile.owner, url: siteFile.owner_url };
 const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [...(measuredFile.measured || []), ...modelsFile.measured], gpus: gpusFile.gpus };
@@ -776,6 +776,8 @@ async function handle(request, env, ctx) {
     const sp = Object.fromEntries(url.searchParams);
     if (path === "/api/check") { const o = checkFit(sp); logCall(env, ctx, { kind: "api", ua, tool: "check_fit", model_q: sp.model, hw_q: sp.hardware, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
     if (path === "/api/suggest") { const o = suggest(sp); logCall(env, ctx, { kind: "api", ua, tool: "suggest_models", hw_q: sp.hardware, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
+    // (Nov 26) a fresh agent guessed /api/list_known from the tool's name - answer it like list_known
+    if (path === "/api/list_known") { const o = RUN.list_known({ kind: sp.kind || "hardware", ...sp }); logCall(env, ctx, { kind: "api", ua, tool: "list_known", ...(o.log || {}) }); return json({ answer: o.text, ...o.data }, o.error ? 400 : 200); }
     if (path === "/api/models") return json({ models: DATA.models.map(({ id, name, params_b, active_b, verified }) => ({ id, name, params_b, active_b, verified })) });
     if (path === "/api/hardware") return json({ hardware: DATA.gpus.map(({ id, name, vram_gb, bandwidth_gbs }) => ({ id, name, vram_gb, bandwidth_gbs })) });
     if (path === "/api/measured") return json({ license: "CC BY 4.0 - credit LocalBit", data_as_of: AS_OF, measured: DATA.measured });

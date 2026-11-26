@@ -116,6 +116,29 @@ def main():
     st["site_ok"] = site_ok()
     if not st["site_ok"]:
         st["problems"].append("the live site didn't answer properly")
+    # 8 (Nov 26) fresh-agent test: the assistant's model, plus any model in config eval_models that's already installed;
+    # skipped if the site is down or someone is using the assistant
+    if st["site_ok"]:
+        sys.path.insert(0, str(HERE))
+        try:
+            import run_3090 as R
+            cfg = R.cfg()
+            st["agent_eval"], others = {}, False
+            for mdl in [R.ASSISTANT_MODEL] + [m for m in cfg.get("eval_models", []) if m != R.ASSISTANT_MODEL]:
+                if R.assistant_busy():
+                    st["problems"].append("fresh-agent test skipped - the assistant is in use"); break
+                if not R.have(mdl):
+                    continue
+                others = others or mdl != R.ASSISTANT_MODEL
+                r = run([PY, "bench/agent_eval.py", "--model", mdl], timeout=2400)
+                m = re.search(r"EVAL SUMMARY (\{.*\})", r.stdout or "")
+                st["agent_eval"][mdl] = json.loads(m.group(1)) if m else "failed"
+                if not m:
+                    st["problems"].append("fresh-agent test failed for " + mdl)
+            if others:
+                R.restore_assistant()
+        except Exception as e:
+            st["problems"].append("fresh-agent test error: " + type(e).__name__)
     st["finished"] = datetime.now().isoformat(timespec="seconds")
     STATUS.write_text(json.dumps(st, indent=1), encoding="utf-8")
     say("nightly done:", "ok" if not st["problems"] else "; ".join(st["problems"]))
