@@ -778,7 +778,7 @@ async function stats(request, env) {
     // (Nov 26) which formats agents use or look for - the map of what's catching on
     formats: await q(`SELECT CASE WHEN kind LIKE 'mcp_%' AND kind != 'mcp_json' THEN 'MCP (tools)' WHEN kind = 'api' OR kind = 'submit' THEN 'JSON API' WHEN kind = 'llms_txt' THEN 'llms.txt'
       WHEN kind = 'mcp_json' THEN 'mcp.json discovery file' WHEN kind = 'log_rss' THEN 'RSS feed' WHEN kind IN ('recipe', 'test_script') THEN 'test recipe / script'
-      WHEN kind = 'limited' THEN 'turned away' ELSE 'web pages' END format, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} GROUP BY format ORDER BY n DESC`).catch(() => []),
+      WHEN kind = 'limited' THEN 'turned away' ELSE 'web pages' END format, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} GROUP BY format ORDER BY n DESC`).catch(() => []),
     format_misses: await q(`SELECT CASE WHEN path LIKE '%agent-card.json' OR path LIKE '%agent.json' THEN 'A2A agent card' WHEN path LIKE '%oauth%' OR path LIKE '%openid%' THEN 'sign-in discovery (OAuth)'
       WHEN path LIKE '%openapi%' OR path LIKE '%swagger%' THEN 'OpenAPI' WHEN path LIKE '%/sse%' THEN 'old MCP (SSE)' WHEN path LIKE '%ai-plugin%' THEN 'ChatGPT plugin manifest'
       WHEN path LIKE '/.well-known/%' THEN 'other well-known file' ELSE NULL END format, count(*) n FROM misses WHERE ts >= ? GROUP BY format HAVING format IS NOT NULL ORDER BY n DESC`).catch(() => []),
