@@ -1,0 +1,51 @@
+"""LocalBit: the 3-minute test script against a made-up Ollama and a made-up LocalBit - it measures, shows what it would send,
+sends nothing without a yes, sends only the listed fields with one, and the community publisher keeps only plausible rows.
+python test/test_script.py"""
+import json, os, subprocess, sys, tempfile, threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+posted = []
+class O(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def _j(self, o):
+        b = json.dumps(o).encode(); self.send_response(200); self.send_header("content-type", "application/json"); self.end_headers(); self.wfile.write(b)
+    def do_GET(self):
+        if self.path == "/api/tags": return self._j({"models": [{"name": "made-up:7b"}]})
+        if self.path == "/api/version": return self._j({"version": "0.0-test"})
+        if self.path == "/api/ps": return self._j({"models": [{"name": "made-up:7b", "size": 5 * 2**30, "size_vram": 5 * 2**30}]})
+        self._j({})
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["content-length"])) or b"{}")
+        if self.path == "/api/show": return self._j({"details": {"quantization_level": "Q4_K_M"}, "capabilities": ["completion"]})
+        if self.path == "/api/generate": return self._j({"eval_count": 256, "eval_duration": int(4e9), "prompt_eval_count": 4000, "prompt_eval_duration": int(2e9)})
+        if self.path == "/api/submit": posted.append(body); return self._j({"answer": "Thank you - recorded (made-up)."})
+        self._j({})
+srv = HTTPServer(("127.0.0.1", 0), O); threading.Thread(target=srv.serve_forever, daemon=True).start()
+url = "http://127.0.0.1:%d" % srv.server_port
+env = dict(os.environ, LOCALBIT_OLLAMA=url, LOCALBIT_SITE=url, LOCALBIT_RECIPE=str(ROOT / "data" / "recipe.json"), LOCALBIT_FAKE_GPU="Made-up GPU 9000|12|1")
+script = str(ROOT / "bench" / "localbit_test.py")
+ok = bad = 0
+def check(name, cond, got=""):
+    global ok, bad
+    ok, bad = (ok + 1, bad) if cond else (ok, bad + 1)
+    print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  got: %r" % (got,)))
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+check("dry run: measures, shows what would be sent, sends nothing", r.returncode == 0 and '"gen_tps": 64.0' in r.stdout and "nothing sent" in r.stdout and not posted, (r.stdout[-400:], r.stderr[-300:]))
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b"], env=env, input="n\n", capture_output=True, text=True, timeout=120)
+check("answering no: nothing is sent", r.returncode == 0 and "Not sent" in r.stdout and not posted, r.stdout[-300:])
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b"], env=env, input="y\n", capture_output=True, text=True, timeout=120)
+check("answering yes: sent once, LocalBit's reply shown", len(posted) == 1 and "recorded" in r.stdout, (posted, r.stdout[-300:]))
+p = posted[0] if posted else {}
+check("only the listed fields are sent - no names, paths or addresses", set(p) <= {"recipe_version", "model", "quant", "hardware", "memory_gb", "cards", "runtime", "os", "results", "client"}
+      and not any(x in json.dumps(p) for x in (os.path.expanduser("~"), os.environ.get("USERNAME", "@@"), os.environ.get("USER", "@@"), "127.0.0.1")), p)
+check("results: both recipe contexts, prompt speed at 16K, on-card flag", [x["context"] for x in p.get("results", [])] == [4096, 16384] and p["results"][1].get("prompt_tps") == 2000.0 and p["results"][0].get("all_on_gpu") is True, p.get("results"))
+srv.shutdown()
+# the community publisher: only plausible rows, middle value, count
+tmp = Path(tempfile.mkdtemp())
+subs = [dict(ts="2026-11-26T10:00:00Z", model_id="llama-3.1-8b", gpu_id="rtx-4060", context=4096, quant="Q4_K_M", gen_tps=v, status=s, runtime="Ollama 0.40") for v, s in ((40, "community"), (42, "community"), (41, "community"), (400, "flagged"))]
+(tmp / "subs.json").write_text(json.dumps(subs), encoding="utf-8")
+r = subprocess.run([sys.executable, str(ROOT / "bench" / "publish_community.py")], env=dict(os.environ, LOCALBIT_SUBMISSIONS=str(tmp / "subs.json"), LOCALBIT_COMMUNITY=str(tmp / "c.json")), capture_output=True, text=True, timeout=60)
+c = json.loads((tmp / "c.json").read_text())["community"] if (tmp / "c.json").exists() else []
+check("community data: flagged rows left out, the middle of the plausible ones, how many", len(c) == 1 and c[0]["gen_tps"] == 41 and c[0]["n"] == 3, (c, r.stderr[-200:]))
+print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)

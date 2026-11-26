@@ -70,13 +70,23 @@ def main():
     if not st["backup_ok"]:
         st["problems"].append("the log backup from Cloudflare failed")
     for name, sql in (("asks", "SELECT DISTINCT model_q, hw_q, context, quant FROM calls WHERE kind IN ('mcp_call','api','check_page','compare_page') AND model_q IS NOT NULL AND hw_q IS NOT NULL"),
-                      ("reports", "SELECT ts, problem, model_q, hw_q, context, obs_tps, obs_mem_gb, runtime, note FROM reports")):
+                      ("reports", "SELECT ts, problem, model_q, hw_q, context, obs_tps, obs_mem_gb, runtime, note FROM reports"),
+                      ("submissions", "SELECT ts, model_id, model_q, quant, gpu_id, hw_q, cards, context, gen_tps, prompt_tps, all_on_gpu, runtime, os, est_tps, ratio, status, reasons FROM submissions")):
         r = npx('wrangler d1 execute localbit --remote --json --command "%s"' % sql)
         try:
             rows = json.loads(r.stdout[r.stdout.index("["):])[0]["results"]
             (BACKUPS / (name + ".json")).write_text(json.dumps(rows, indent=1), encoding="utf-8")
         except Exception:
             st["problems"].append("couldn't export the %s" % name)
+    # (Nov 26) community results -> data/community.json (bundled at deploy)
+    before_c = (ROOT / "data" / "community.json").read_text(encoding="utf-8") if (ROOT / "data" / "community.json").exists() else ""
+    r = run([PY, "bench/publish_community.py"])
+    m = re.search(r"COMMUNITY rows (\d+) from (\d+)", r.stdout or "")
+    if m:
+        st["community_rows"], st["submissions"] = int(m.group(1)), int(m.group(2))
+    if (ROOT / "data" / "community.json").read_text(encoding="utf-8") != before_c:
+        changed = True
+        st["data_changed"] = True
     olds = sorted(BACKUPS.glob("d1_*.sql"))[:-KEEP]
     for f in olds:   # keep two weeks; older ones go to _to_delete (nothing is deleted)
         (ROOT / "_to_delete" / "backups").mkdir(parents=True, exist_ok=True)

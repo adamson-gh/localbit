@@ -54,3 +54,6 @@ How it works, the rules and the lessons: `docs/NOTES.md`. What changed: `CHANGEL
 
 ## License
 Code: MIT (LICENSE). Data in `data/`: CC BY 4.0 (DATA_LICENSE.md).
+
+## Contribute a measurement
+Run `python bench/localbit_test.py` (or download it from `/test.py`) with Ollama and a model pulled. It measures with the same recipe as the node, prints what it would send (model, hardware name and memory, speeds, Ollama version, OS - nothing personal) and asks before sending. `--dry-run` never sends.

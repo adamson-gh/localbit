@@ -6,9 +6,12 @@ import modelsFile from "../data/models.json" with { type: "json" };
 import gpusFile from "../data/gpus.json" with { type: "json" };
 import measuredFile from "../data/measured.json" with { type: "json" };
 import siteFile from "../config/site.json" with { type: "json" };
+import communityFile from "../data/community.json" with { type: "json" };
+import recipeFile from "../data/recipe.json" with { type: "json" };
+import TEST_SCRIPT from "./generated/test_script.js";
 import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest, familyOf } from "./estimate.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 const SITE = siteFile.site;
 const OWNER = { name: siteFile.owner, url: siteFile.owner_url };
 const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [...(measuredFile.measured || []), ...modelsFile.measured], gpus: gpusFile.gpus };
@@ -78,6 +81,24 @@ const TOOLS = [
     description: "Returns the newest measurements from LocalBit's own RTX 3090 test node, newest first (default 10, up to 50): for each model, measured speed in tokens per second at 16K context, quality score (% of 60 script-graded questions right), card memory used, time to read a 3,000-word document, energy per answer, and the date. Use this when the user asks what has actually been tested or measured recently, or wants real results rather than estimates; use check_fit or compare to answer about a specific model and hardware (they include these measurements automatically when they apply).",
     inputSchema: { type: "object", properties: { limit: { type: "integer", description: "How many models (default 10)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
+  { name: "get_details", title: "Full details of one model or card",
+    description: "Returns everything LocalBit knows about one model (parameters, active parameters, layers, attention heads, maximum context, whether its specs are verified) or one graphics card or Mac (memory, memory bandwidth), plus its measurements from LocalBit's node and from the community. Use this when the user wants the specifications themselves or what has been measured for a model or card; use check_fit to ask whether a model runs on hardware, and list_known to browse names. Unknown names return the closest known ones.",
+    inputSchema: { type: "object", required: ["name"], properties: { name: { type: "string", description: "A model ('qwen3 32b') or hardware ('rtx 4090', 'm4 max')." },
+      kind: { type: "string", enum: ["model", "hardware"], description: "Optional - which one the name is, if ambiguous." } } },
+    annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
+  { name: "get_test_kit", title: "How to measure a model on your own machine",
+    description: "Returns LocalBit's 3-minute test: a script (Python, nothing to install) that measures a model in the user's own Ollama the same way LocalBit's RTX 3090 node does, shows exactly what would be shared and asks before sending anything. Use this when the user has hardware LocalBit hasn't measured and is willing to contribute, or wants real numbers for their own machine; answers from check_fit say when a setup hasn't been measured yet. Results are sent with submit_result (the script does this itself after the user agrees).",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
+  { name: "submit_result", title: "Contribute a measurement",
+    description: "Sends LocalBit a measurement made with its recipe (get_test_kit): the model's Ollama tag, quantization, hardware name and memory, Ollama version, OS and, for each context length, tokens per second (and optionally prompt speed and whether the model sat fully on the card). Use this after the user has seen the numbers and agreed to share them - never before; never include names, file paths or other personal details. Each result is checked against LocalBit's estimate: plausible ones are published as community results (labelled unverified), others are flagged for review. Use report_issue instead for a single wrong answer without a full measurement. Limited to 5 a minute.",
+    inputSchema: { type: "object", required: ["model", "hardware", "results"], properties: {
+      model: { type: "string", description: "The model's Ollama tag, e.g. 'llama3.1:8b'." }, quant: { type: "string", description: "Quantization, e.g. 'Q4_K_M'." },
+      hardware: { type: "string", description: "Graphics card or Mac name, e.g. 'NVIDIA GeForce RTX 4060'." }, memory_gb: { type: "number", description: "Its memory in GB." },
+      cards: { type: "integer", description: "Number of identical cards (default 1)." }, runtime: { type: "string", description: "e.g. 'Ollama 0.40.15'." }, os: { type: "string", description: "Windows, macOS or Linux." },
+      recipe_version: { type: "string" },
+      results: { type: "array", items: { type: "object", required: ["context", "gen_tps"], properties: { context: { type: "integer" }, gen_tps: { type: "number" }, prompt_tps: { type: "number" }, all_on_gpu: { type: "boolean" }, loaded_gb: { type: "number" } } } } } },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false, idempotentHint: false } },
   { name: "report_issue", title: "Report a wrong or missing answer",
     description: "Sends LocalBit a report that an answer was wrong (it didn't fit, the speed was different, a spec is off) or that a model or card is missing, so it can be corrected. Use this after check_fit, compare or suggest_models gave an answer the user's real experience contradicts. Real results help most: the tokens per second and memory actually seen, the context length and the runtime. Never include names, emails or other personal details - notes are stored as written with emails, numbers and links removed. Returns a confirmation; each call files a separate report, so send it once. Limited to 5 reports a minute.",
     inputSchema: { type: "object", required: ["problem"], properties: {
@@ -112,8 +133,11 @@ function checkFit(args) {
   }
   const e = estimate(m, g, args, DATA.quants);
   const meas = measuredFor(e, DATA.measured);
+  // (Nov 26) where the node hasn't measured, results people submitted (checked for plausibility, labelled unverified)
+  const comm = meas ? null : measuredFor(e, (communityFile.community || []).map(r => ({ ...r, runs: r.n })));
   const tips = suggestions(e, m, g, DATA);
   const speed = meas ? `${meas.gen_tokens_per_s} tokens/s measured (${meas.results} result${meas.results > 1 ? "s" : ""}, ${meas.quant}, ${meas.runtime}${meas.date ? ", measured " + meas.date : ""})`
+              : comm ? `${comm.gen_tokens_per_s} tokens/s measured by ${comm.results} community run${comm.results > 1 ? "s" : ""} (unverified, ${comm.quant}, ${comm.runtime}${comm.date ? ", " + comm.date : ""}); estimate ${e.gen_tokens_per_s}`
                      : `about ${e.gen_tokens_per_s} tokens/s (estimated, likely ${e.gen_tokens_per_s_range[0]}-${e.gen_tokens_per_s_range[1]}${e.partly_on_cpu ? ", with part of the model running from system memory" : ""})`;
   const verdictText = { fits: "Yes, it fits.", tight: "Just barely - it may not fit once other apps use the card.", does_not_fit: "No, not entirely on this hardware." }[e.verdict];
   const lines = [
@@ -133,9 +157,11 @@ function checkFit(args) {
   if (!m.verified && m.matched === "known") lines.push("Note: this model's specifications are from its published config and not yet re-checked.");
   const url = m.matched === "known" && g.matched === "known" && !g.cards ? `${SITE}/run/${m.id}/on/${g.id}` :
     `${SITE}/check?model=${encodeURIComponent(args.model)}&hardware=${encodeURIComponent(args.hardware)}`;
+  if (!meas && !comm && g.matched === "known" && !g.cards && e.verdict !== "does_not_fit")
+    lines.push(`Not measured on this hardware yet: anyone with it can add the first real numbers with LocalBit's 3-minute test (get_test_kit, or ${SITE}/test).`);
   lines.push(`Details: ${url}`);
   lines.push(asOfText());
-  return { text: lines.join("\n"), data: { ...e, measured: meas, suggestions: tips, basis: meas ? "measured" : "estimated", data_as_of: AS_OF, source_url: url,
+  return { text: lines.join("\n"), data: { ...e, measured: meas, suggestions: tips, basis: meas ? "measured" : comm ? "community" : "estimated", community: comm || null, data_as_of: AS_OF, source_url: url,
            ...(m.max_ctx && e.context > m.max_ctx ? { context_beyond_model_max: true } : {}) },
            log: { model_id: m.id, gpu_id: g.id, verdict: e.verdict, context: e.context, quant: e.quant } };
 }
@@ -207,7 +233,86 @@ function nodeLog(args) {
   return { text, data: { readings: e, data_as_of: AS_OF }, log: { verdict: "log" } };
 }
 for (const tdef of TOOLS) if (OUT[tdef.name]) tdef.outputSchema = OUT[tdef.name];
-const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown, compare, node_log: nodeLog };
+// ---------- contributions (Nov 26, owner: "plan then build") ----------
+function getTestKit() {
+  const text = [`LocalBit's 3-minute test measures a model on your own machine the same way LocalBit's RTX 3090 node does, then asks before sharing anything.`,
+    `1. Needs Python 3.8+ and Ollama with the model pulled.`, `2. Download: ${SITE}/test.py  (source: ${siteFile.repo}/blob/main/bench/localbit_test.py)`,
+    `3. Run: python test.py --model <ollama tag>   (add --dry-run to see the numbers without sending)`,
+    `It shows exactly what would be sent - model, card or Mac name and memory, speeds, Ollama version, OS - and asks yes/no. No names, file paths or IPs.`,
+    `Recipe (if you'd rather run it yourself): ${SITE}/recipe.json - then send results with submit_result.`].join("\n");
+  return { text, data: { script_url: SITE + "/test.py", recipe_url: SITE + "/recipe.json", recipe_version: recipeFile.recipe_version, page: SITE + "/test" }, log: { verdict: "test_kit" } };
+}
+function checkSubmission(b) {
+  const reasons = [], rows = [];
+  const res = Array.isArray(b.results) ? b.results.slice(0, 4) : [];
+  if (!b.model || !b.hardware || !res.length) return { status: "rejected", reasons: ["needs model, hardware and at least one result"], rows };
+  const m = findModel(String(b.model), DATA.models);
+  let hw = String(b.hardware); if (+b.cards > 1 && !/\d\s*x/i.test(hw)) hw = `${+b.cards}x ${hw}`;
+  const g = findGpu(hw, DATA.gpus) || (b.memory_gb ? findGpu(`${b.memory_gb} GB`, DATA.gpus) : null);
+  if (!m) reasons.push("model not known to LocalBit");
+  if (!g) reasons.push("hardware not known to LocalBit");
+  if (g && b.memory_gb && g.vram_gb && Math.abs(+b.memory_gb - g.vram_gb) / g.vram_gb > 0.25) reasons.push(`reported memory ${b.memory_gb} GB differs from the card's ${g.vram_gb} GB`);
+  for (const r of res) {
+    const ctx = Math.round(+r.context || 0), tps = +r.gen_tps;
+    const rr = { context: ctx, gen_tps: tps, prompt_tps: Number.isFinite(+r.prompt_tps) ? +r.prompt_tps : null, all_on_gpu: r.all_on_gpu === undefined ? null : !!r.all_on_gpu, loaded_gb: Number.isFinite(+r.loaded_gb) ? +r.loaded_gb : null, reasons: [] };
+    if (!(ctx >= 512 && ctx <= 1048576) || !(tps > 0.05 && tps < 5000)) { rr.reasons.push("result out of range"); rows.push(rr); continue; }
+    if (rr.all_on_gpu === false) rr.reasons.push("model was partly off the graphics card");
+    if (m && g) {
+      const e = estimate(m, g, { context: ctx, quant: b.quant }, DATA.quants);
+      rr.est_tps = e.gen_tokens_per_s; rr.ratio = +(tps / e.gen_tokens_per_s).toFixed(2);
+      if (rr.ratio < 0.35 || rr.ratio > 2.2) rr.reasons.push(`${tps} tokens/s is far from the expected ${e.gen_tokens_per_s}`);
+      if (e.verdict === "does_not_fit" && rr.all_on_gpu) rr.reasons.push("this model shouldn't fit entirely on that hardware");
+    }
+    rows.push(rr);
+  }
+  const status = reasons.some(x => /not known/.test(x)) || rows.some(r => r.reasons.length) ? "flagged" : "community";
+  return { status, reasons, rows, m, g };
+}
+function submitResult(env, ctx, b, source, client) {
+  const c = checkSubmission(b || {});
+  if (c.status === "rejected") return { error: true, text: "Not recorded: " + c.reasons.join("; ") + ". See get_test_kit for the format.", data: { status: "rejected" }, log: { verdict: "rejected" } };
+  const now = new Date().toISOString();
+  if (env && env.DB) {
+    try {
+      for (const r of c.rows) ctx.waitUntil(env.DB.prepare("INSERT INTO submissions (ts, source, client, recipe_version, model_q, model_id, quant, hw_q, gpu_id, cards, memory_gb, context, gen_tps, prompt_tps, all_on_gpu, loaded_gb, runtime, os, est_tps, ratio, status, reasons) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(now, source, String(client || "").slice(0, 60), String(b.recipe_version || "").slice(0, 10), String(b.model).slice(0, 80), c.m ? c.m.id : null, String(b.quant || "").slice(0, 20) || null,
+              String(b.hardware).slice(0, 80), c.g ? c.g.id : null, +b.cards || 1, Number.isFinite(+b.memory_gb) ? +b.memory_gb : null, r.context, r.gen_tps, r.prompt_tps, r.all_on_gpu === null ? null : (r.all_on_gpu ? 1 : 0),
+              r.loaded_gb, String(b.runtime || "").slice(0, 40), String(b.os || "").slice(0, 20), r.est_tps ?? null, r.ratio ?? null, r.reasons.length || c.status === "flagged" ? "flagged" : "community",
+              [...c.reasons, ...r.reasons].join("; ").slice(0, 240) || null).run().catch(() => {}));
+    } catch {}
+  }
+  const what = `${c.m ? c.m.name : b.model} on ${c.g ? c.g.name : b.hardware}`;
+  const text = c.status === "community"
+    ? `Thank you - recorded as a community result for ${what} (${c.rows.map(r => `${r.gen_tps} tokens/s at ${r.context.toLocaleString("en-US")}`).join(", ")}). It will appear in LocalBit's answers, labelled unverified, after tonight's update.`
+    : `Recorded, but flagged for review rather than published: ${[...c.reasons, ...c.rows.flatMap(r => r.reasons)].join("; ")}. If the numbers are right, nothing more is needed - flagged results are checked by hand.`;
+  return { text, data: { status: c.status, rows: c.rows.map(({ reasons, ...r }) => ({ ...r, flags: reasons })) }, log: { model_id: c.m && c.m.id, gpu_id: c.g && c.g.id, verdict: "submit_" + c.status } };
+}
+function getDetails(args) {
+  const q = String(args.name || "").trim();
+  if (!q) return { error: true, text: "get_details needs a name - a model ('qwen3 32b') or hardware ('rtx 4090'). list_known gives exact names.", data: {}, log: { verdict: "missing_args" } };
+  const kind = args.kind || "";
+  const m = kind === "hardware" ? null : findModel(q, DATA.models), g = kind === "model" || (m && m.matched === "known") ? null : findGpu(q, DATA.gpus);
+  if (m && m.matched === "known") {
+    const node = (measuredFile.measured || []).filter(r => r.model === m.id), com = (communityFile.community || []).filter(r => r.model === m.id);
+    const lines = [`${m.name}: ${m.params_b}B parameters${m.active_b && m.active_b < m.params_b ? ` (${m.active_b}B active per token - mixture of experts)` : ""}, ${m.layers} layers, ${m.kv_heads} KV heads.`,
+      m.max_ctx ? `Context: up to ${m.max_ctx.toLocaleString("en-US")} tokens${m.native_ctx ? ` (${m.native_ctx.toLocaleString("en-US")} without long-context settings)` : ""}.` : "Context: maximum not on record.",
+      `Specs: ${m.verified ? "checked against the model's own metadata" : "from its published config, not yet re-checked"}.`,
+      node.length ? `Measured on LocalBit's RTX 3090: ${node.map(r => `${r.gen_tps} tokens/s at ${(r.context / 1024)}K`).join(", ")}${node[0].quality_pct != null ? `; quality ${node[0].quality_pct}% right` : ""}.` : "Not measured on LocalBit's node yet.",
+      com.length ? `Community results: ${com.map(r => `${r.gpu} ${r.gen_tps} tokens/s (${r.n} run${r.n > 1 ? "s" : ""})`).join(", ")}.` : "No community results yet.",
+      asOfText()];
+    return { text: lines.join("\n"), data: { kind: "model", model: { id: m.id, name: m.name, params_b: m.params_b, active_b: m.active_b || m.params_b, layers: m.layers, kv_heads: m.kv_heads, head_dim: m.head_dim, max_context: m.max_ctx || null, native_context: m.native_ctx || null, verified: !!m.verified }, node_measurements: node, community: com, data_as_of: AS_OF }, log: { model_id: m.id, verdict: "details" } };
+  }
+  if (g && g.matched === "known") {
+    const node = (measuredFile.measured || []).filter(r => r.gpu === g.id), com = (communityFile.community || []).filter(r => r.gpu === g.id);
+    const lines = [`${g.name}${g.cards ? "" : ""}: ${g.vram_gb} GB ${g.vendor === "apple" ? "unified memory (about 75% usable for models)" : "of graphics memory"}, ${g.bandwidth_gbs} GB/s memory bandwidth (sets generation speed).`,
+      node.length ? `Measured here by LocalBit's node: ${[...new Set(node.map(r => r.model))].length} models - see ${SITE}/measured.` : "Not LocalBit's test card - answers for it are estimates unless the community has measured it.",
+      com.length ? `Community results: ${com.map(r => `${r.model} ${r.gen_tps} tokens/s`).join(", ")}.` : `No community results yet - ${SITE}/test adds the first.`, asOfText()];
+    return { text: lines.join("\n"), data: { kind: "hardware", hardware: { id: g.id, name: g.name, vendor: g.vendor, memory_gb: g.vram_gb, bandwidth_gbs: g.bandwidth_gbs, usable_fraction: g.usable_fraction || null }, node_measurements: node, community: com, data_as_of: AS_OF }, log: { gpu_id: g.id, verdict: "details" } };
+  }
+  const cm = closest(q, DATA.models), cg = closest(q, DATA.gpus);
+  return { error: true, text: `LocalBit doesn't know "${q}".${cm.length || cg.length ? " Closest known: " + [...cm, ...cg].slice(0, 4).join(", ") + "." : ""} list_known gives exact names.`, data: { closest: [...cm, ...cg] }, log: { verdict: "unknown" } };
+}
+const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown, compare, node_log: nodeLog, get_details: getDetails, get_test_kit: getTestKit };
 
 // ---------- logging (no IPs, nothing personal) ----------
 function agentOf(ua) {
@@ -286,8 +391,8 @@ async function mcp(request, env, ctx) {
     case "tools/list": logCall(env, ctx, { kind: "mcp_list", ua }); return reply({ tools: TOOLS });
     case "tools/call": {
       const args = p.arguments || {};
-      if (p.name === "report_issue" && await limited(env, request, "REPORTS")) return fail(-32000, "Too many reports from here - try again in a minute.");
-      const fn = p.name === "report_issue" ? (a => saveReport(env, ctx, a, "mcp", ua)) : RUN[p.name];
+      if ((p.name === "report_issue" || p.name === "submit_result") && await limited(env, request, "REPORTS")) return fail(-32000, "Too many submissions from here - try again in a minute.");
+      const fn = p.name === "report_issue" ? (a => saveReport(env, ctx, a, "mcp", ua)) : p.name === "submit_result" ? (a => submitResult(env, ctx, a, "mcp", ua)) : RUN[p.name];
       if (!fn) return fail(-32602, "Unknown tool: " + p.name);
       let out;
       try { out = fn(args); }
@@ -363,7 +468,7 @@ function page(title, body, origin, desc) {
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc || "Will this AI model run on my hardware? Memory needed and speed, estimated or measured.")}">
 <link rel="icon" href="/logo.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="color-scheme" content="light"><style>:root{color-scheme:light}${CSS}</style></head><body>
-<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/log">Node log</a><a href="${origin}/compare">Compare</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
+<header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/log">Node log</a><a href="${origin}/test">Test yours</a><a href="${origin}/compare">Compare</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
 <footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/docs">Docs</a><a href="${origin}/privacy">Privacy</a><a href="${origin}/about">About &amp; data license</a><a href="${siteFile.repo}">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
 </body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -383,7 +488,7 @@ function home(origin) {
 <div class="card"><h3>Open data</h3><p>Readings and tables under CC BY 4.0. Scripts on <a href="${siteFile.repo}">GitHub</a>.</p></div></div>
 <h2 id="agents">For AI agents</h2>
 <div class="card"><p style="margin-top:0"><b>MCP server</b> (Streamable HTTP, no key): <code>${origin}/mcp</code><br><span class="small">Listed in the MCP Registry as <code>io.github.adamson-gh/localbit</code></span></p>
-<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare</code> · <code>node_log</code> · <code>list_known</code> · <code>report_issue</code></p>
+<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare</code> · <code>get_details</code> · <code>node_log</code> · <code>list_known</code> · <code>get_test_kit</code> · <code>submit_result</code> · <code>report_issue</code></p>
 <p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a></p></div>
 <h2>What the node logs</h2><p class="small">The tool called, the model and hardware asked about, and the calling app's self-reported name. No IP addresses, accounts or personal data. <a href="${origin}/about">Who runs it, privacy, data license.</a></p>`, origin,
   "Will an AI model run on your GPU or Mac? Memory needed and tokens per second - estimated, and measured on a real RTX 3090.");
@@ -410,6 +515,15 @@ function checkPage(sp, origin) {
 const ICON_PNG_B64 = "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";   // 180x180 logo for phones' home screens
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#2457d6"/><path d="M150 120 V372 H362" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><g fill="#fff"><rect x="226" y="282" width="34" height="58" rx="10" opacity=".55"/><rect x="276" y="236" width="34" height="104" rx="10" opacity=".75"/><rect x="326" y="180" width="34" height="160" rx="10"/></g></svg>`;
 // (Nov 25: Glama - "No documentation or privacy policy URL ... ChatGPT's requires a privacy policy") a privacy page and a docs page
+function testPage(origin) {
+  return page("Measure your own machine - LocalBit", `<h1>Measure your own machine</h1><p class="lede">Three minutes, your hardware, the same method as the node. Share the numbers only if you want to.</p>
+<div class="card"><p style="margin-top:0"><b>1.</b> You need Python 3.8+ and <a href="https://ollama.com">Ollama</a> with a model pulled.</p>
+<p><b>2.</b> <a href="${origin}/test.py">Download localbit_test.py</a> (one file, nothing to install - <a href="${siteFile.repo}/blob/main/bench/localbit_test.py">read the source</a>).</p>
+<p><b>3.</b> Run <code>python localbit_test.py</code> and pick a model. Add <code>--dry-run</code> to measure without sending anything.</p>
+<p style="margin-bottom:0"><b>4.</b> It prints exactly what would be shared - the model, your card or Mac name and memory, the speeds, Ollama version and OS - and asks yes or no.</p></div>
+<h2>What gets shared, if you say yes</h2><p>Only those numbers. Never names, usernames, file paths, IP addresses or serial numbers. Results are checked against LocalBit's estimate: plausible ones appear in answers as <b>community</b> results, labelled unverified; unusual ones are held for review. They become open data (CC BY 4.0).</p>
+<h2>For agents</h2><p><code>get_test_kit</code> returns these steps; <code>submit_result</code> sends a result after the user agrees. Recipe: <a href="${origin}/recipe.json">/recipe.json</a>.</p>`, origin);
+}
 function privacyPage(origin) {
   return page("Privacy policy - LocalBit", `<h1>Privacy policy</h1><p class="lede">Short version: LocalBit keeps what was asked, never who asked.</p>
 <h2>What is recorded</h2><ul><li>For each request: the time, which page or tool, the model and hardware named, the answer's verdict, and the calling app's self-reported name (its user agent or MCP client name).</li>
@@ -431,6 +545,8 @@ function docsPage(origin) {
 <h2>JSON API</h2><ul><li><code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%204060&amp;context=8192&amp;quant=Q4_K_M</code></li>
 <li><code>GET ${origin}/api/compare?a_model=...&amp;a_hardware=...&amp;b_model=...</code> (or <code>b_hardware</code>)</li>
 <li><code>GET ${origin}/api/suggest?hardware=16%20GB</code> · <code>/api/models</code> · <code>/api/hardware</code> · <code>/api/measured</code> · <code>/api/log</code></li>
+<li><code>GET ${origin}/api/details?name=rtx%204090</code> · <code>GET ${origin}/recipe.json</code> · <code>GET ${origin}/test.py</code></li>
+<li><code>POST ${origin}/api/submit</code> (a measurement made with the recipe - see <a href="${origin}/test">/test</a>)</li>
 <li><code>POST ${origin}/api/report</code> (JSON: problem, model, hardware, observed_tokens_per_s, observed_memory_gb, runtime, note)</li></ul>
 <h2>Hardware</h2><p>Card names ("RTX 4060"), several cards ("2x RTX 3090"), Macs by chip ("M2 Pro 32 GB"), or just memory ("12 GB card").</p>
 <h2>Limits</h2><p>120 requests a minute per address; 5 reports a minute.</p>
@@ -564,12 +680,13 @@ ${reportForm(origin, m, g)}`, origin, out.text.split("\n")[0]);
 }
 function llmsTxt(origin) {
   return `# LocalBit\n\n> Will an AI model run on this hardware? Memory needed (weights + context cache) and estimated or measured generation speed for local models on graphics cards and Apple computers.\n\n` +
-    `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), compare(a_model, a_hardware, b_model?, b_hardware?, context?), node_log(limit?), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
+    `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), compare(a_model, a_hardware, b_model?, b_hardware?, context?), node_log(limit?), get_details(name, kind?), get_test_kit(), submit_result(model, hardware, results, ...), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
     `- JSON API: ${origin}/api/check?model=...&hardware=...&context=...&quant=... ; ${origin}/api/suggest?hardware=... ; ${origin}/api/models ; ${origin}/api/hardware ; ${origin}/api/measured ; ${origin}/api/compare?a_model=...&a_hardware=...&b_model=... ; ${origin}/api/log ; ${origin}/log.rss ; POST ${origin}/api/report (JSON)\n\n` +
+    `## Contribute\n- No measurement for your hardware? ${origin}/test - a 3-minute script (${origin}/test.py, recipe ${origin}/recipe.json) measures a model in your own Ollama, shows what it would send and asks first. Agents: get_test_kit, then submit_result after the user agrees. Community results are labeled "community" (unverified).\n\n` +
     `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
 }
 function sitemap(origin) {
-  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/docs", origin + "/privacy", origin + "/about"];
+  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/test", origin + "/docs", origin + "/privacy", origin + "/about"];
   for (const m of DATA.models) for (const g of DATA.gpus) urls.push(`${origin}/run/${m.id}/on/${g.id}`);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc>${AS_OF.specs ? `<lastmod>${[AS_OF.specs, AS_OF.measured].filter(Boolean).sort().pop()}</lastmod>` : ""}</url>`).join("\n")}\n</urlset>`,
     { headers: { "content-type": "application/xml" } });
@@ -600,6 +717,15 @@ async function stats(request, env) {
     limited_total: (await q("SELECT count(*) n FROM calls WHERE ts >= ? AND kind = 'limited'"))[0]?.n || 0,
     misses_total: (await q("SELECT count(*) n FROM misses WHERE ts >= ?").catch(() => [{ n: 0 }]))[0]?.n || 0,
     top_misses: await q(`SELECT path, count(*) n, ${SCANNER_SQL} scanner FROM misses WHERE ts >= ? GROUP BY path ORDER BY n DESC LIMIT 20`).catch(() => []),
+    submissions: await q("SELECT status, count(*) n FROM submissions WHERE ts >= ? GROUP BY status").catch(() => []),
+    recent_submissions: await q("SELECT ts, model_id, model_q, gpu_id, hw_q, context, gen_tps, est_tps, status, reasons FROM submissions WHERE ts >= ? ORDER BY ts DESC LIMIT 15").catch(() => []),
+    // (Nov 26) which formats agents use or look for - the map of what's catching on
+    formats: await q(`SELECT CASE WHEN kind LIKE 'mcp_%' AND kind != 'mcp_json' THEN 'MCP (tools)' WHEN kind = 'api' OR kind = 'submit' THEN 'JSON API' WHEN kind = 'llms_txt' THEN 'llms.txt'
+      WHEN kind = 'mcp_json' THEN 'mcp.json discovery file' WHEN kind = 'log_rss' THEN 'RSS feed' WHEN kind IN ('recipe', 'test_script') THEN 'test recipe / script'
+      WHEN kind = 'limited' THEN 'turned away' ELSE 'web pages' END format, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} GROUP BY format ORDER BY n DESC`).catch(() => []),
+    format_misses: await q(`SELECT CASE WHEN path LIKE '%agent-card.json' OR path LIKE '%agent.json' THEN 'A2A agent card' WHEN path LIKE '%oauth%' OR path LIKE '%openid%' THEN 'sign-in discovery (OAuth)'
+      WHEN path LIKE '%openapi%' OR path LIKE '%swagger%' THEN 'OpenAPI' WHEN path LIKE '%/sse%' THEN 'old MCP (SSE)' WHEN path LIKE '%ai-plugin%' THEN 'ChatGPT plugin manifest'
+      WHEN path LIKE '/.well-known/%' THEN 'other well-known file' ELSE NULL END format, count(*) n FROM misses WHERE ts >= ? GROUP BY format HAVING format IS NOT NULL ORDER BY n DESC`).catch(() => []),
     reports_by_problem: await q("SELECT problem, count(*) n FROM reports WHERE ts >= ? GROUP BY problem ORDER BY n DESC").catch(() => []),
     recent_reports: await q("SELECT ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note FROM reports WHERE ts >= ? ORDER BY ts DESC LIMIT 25").catch(() => []),
     unknown_asks: await q("SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND (verdict = 'unknown' OR model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 25"),
@@ -623,6 +749,15 @@ async function handle(request, env, ctx) {
     if (path === "/mcp") return mcp(request, env, ctx);
     if (path === "/stats") return stats(request, env);
     if (request.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type, mcp-protocol-version" } });
+    if (path === "/api/submit" && request.method === "POST") {
+      if (await limited(env, request, "REPORTS")) { logCall(env, ctx, { kind: "limited", ua, tool: "submit_result" }); return tooMany(); }
+      const raw = await request.text();
+      if (raw.length > 16384) return json({ error: "too large" }, 413);
+      let b; try { b = JSON.parse(raw); } catch { return json({ error: "send JSON" }, 400); }
+      const o = submitResult(env, ctx, b, "api", (b && b.client) || ua);
+      logCall(env, ctx, { kind: "submit", ua, tool: "submit_result", model_q: b && b.model, hw_q: b && b.hardware, ...o.log });
+      return json({ answer: o.text, ...o.data }, o.error ? 400 : 200);
+    }
     if (path === "/api/report" && request.method === "POST") {
       if (await limited(env, request, "REPORTS")) { logCall(env, ctx, { kind: "limited", ua, tool: "report_issue" }); return tooMany(); }
       const raw = await request.text();
@@ -652,6 +787,10 @@ async function handle(request, env, ctx) {
     if (path === "/favicon.ico") return new Response(LOGO_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
     if (path === "/apple-touch-icon.png" || path === "/apple-touch-icon-precomposed.png" || path === "/logo.png")
       return new Response(Uint8Array.from(atob(ICON_PNG_B64), c => c.charCodeAt(0)), { headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" } });
+    if (path === "/recipe.json") { logCall(env, ctx, { kind: "recipe", ua }); return json(recipeFile); }
+    if (path === "/test.py") { logCall(env, ctx, { kind: "test_script", ua }); return new Response(TEST_SCRIPT, { headers: { "content-type": "text/x-python; charset=utf-8", "content-disposition": 'attachment; filename="localbit_test.py"' } }); }
+    if (path === "/test") { logCall(env, ctx, { kind: "test_page", ua }); return testPage(origin); }
+    if (path === "/api/details") { const o = getDetails(sp); logCall(env, ctx, { kind: "api", ua, tool: "get_details", model_q: sp.name, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
     if (path === "/logo.svg") return new Response(LOGO_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
     if (path === "/privacy") { logCall(env, ctx, { kind: "privacy", ua }); return privacyPage(origin); }
     if (path === "/docs") { logCall(env, ctx, { kind: "docs", ua }); return docsPage(origin); }
@@ -660,7 +799,7 @@ async function handle(request, env, ctx) {
     // (Nov 25) Glama's claim: a token bound to the owner's Glama account - no email, nothing personal. Served for the endpoint
     // (/mcp/.well-known/glama.json) and the domain (/.well-known/glama.json); keep it published to stay verified.
     if (path === "/.well-known/glama.json" || path === "/mcp/.well-known/glama.json") return json({ "$schema": "https://glama.ai/mcp/schemas/connector.json", claim: siteFile.glama_claim });
-    if (path === "/.well-known/mcp.json") return json({ name: "LocalBit", description: "Will this AI model run on this hardware? Memory needed and estimated or measured speed for local models on graphics cards and Macs.",
+    if (path === "/.well-known/mcp.json") { logCall(env, ctx, { kind: "mcp_json", ua }); } if (path === "/.well-known/mcp.json") return json({ name: "LocalBit", description: "Will this AI model run on this hardware? Memory needed and estimated or measured speed for local models on graphics cards and Macs.",
       version: VERSION, endpoint: SITE + "/mcp", transport: "streamable-http", protocol_versions: PROTOCOLS, authentication: "none",
       tools: TOOLS.map(x => x.name), registry: siteFile.registry_name, documentation: SITE + "/docs", privacy_policy: SITE + "/privacy", icon: SITE + "/logo.svg", website: SITE, repository: siteFile.repo });
     if (path === "/llms.txt") { logCall(env, ctx, { kind: "llms_txt", ua }); return new Response(llmsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8" } }); }

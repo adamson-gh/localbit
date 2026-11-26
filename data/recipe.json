@@ -1,0 +1,49 @@
+{
+ "_about": "LocalBit's measurement recipe - the same method its RTX 3090 node uses, so community results line up. Run it with localbit_test.py (or any tool that follows it), then submit with submit_result / POST /api/submit.",
+ "recipe_version": 1,
+ "runtime": "Ollama (http://127.0.0.1:11434, /api/generate, stream false)",
+ "settings": {
+  "temperature": 0,
+  "seed": 7,
+  "think": "false when the model supports thinking",
+  "keep_alive": "10m"
+ },
+ "contexts": [
+  4096,
+  16384
+ ],
+ "tests": [
+  {
+   "name": "gen",
+   "prompt": "Write a calm, detailed story of about four hundred words about a lighthouse keeper named Imra who repairs an old clockwork lamp during a winter storm. Describe each step of the repair.",
+   "num_predict": 256,
+   "runs": 3,
+   "measure": "gen_tps = eval_count / (eval_duration in seconds); the middle of the 3 runs counts"
+  },
+  {
+   "name": "prompt_4k",
+   "prompt_repeat": "The tide charts in the lower office list every harbour light along the coast, with notes on lens type, oil supply, and the hour each lamp was last cleaned. ",
+   "repeat": 110,
+   "suffix": "\nSummarise the notes above in one sentence.",
+   "num_predict": 16,
+   "runs": 1,
+   "contexts": [
+    16384
+   ],
+   "measure": "prompt_tps = prompt_eval_count / (prompt_eval_duration in seconds)"
+  }
+ ],
+ "also_record": [
+  "model tag as Ollama names it",
+  "quantization (from /api/show details.quantization_level)",
+  "graphics card or Mac name and its memory in GB",
+  "number of cards",
+  "whether the model sat fully on the card (/api/ps size_vram >= size)",
+  "Ollama version",
+  "operating system name (Windows / macOS / Linux)"
+ ],
+ "never_send": [
+  "names, usernames, file paths, IP addresses, hostnames, serial numbers"
+ ],
+ "submit": "POST /api/submit (JSON, see /docs) or the MCP tool submit_result"
+}

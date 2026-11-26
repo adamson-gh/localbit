@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 - 2026-11-26
+- Contributions: a 3-minute test (`/test`, `/test.py`, `/recipe.json`) measures a model on your own machine with the node's recipe, shows exactly what it would send and asks first.
+- New tools: `get_test_kit`, `submit_result` (checked against the estimate; plausible results published as community, others flagged), `get_details` (full specs plus node and community measurements).
+- Answers use community results where the node hasn't measured, labelled unverified, and invite a test where nothing is measured yet.
+- Stats show which formats agents use and look for.
+
 ## 0.3.0 - 2026-11-25
 - Several cards ("2x RTX 3090") add up their memory; answers note the split across cards.
 - A context past a model's published maximum is warned about first; Qwen past 32K notes long-context (YaRN) settings.

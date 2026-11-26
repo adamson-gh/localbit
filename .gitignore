@@ -11,3 +11,4 @@ backups/
 bench/status.json
 __pycache__/
 *.pyc
+src/generated/

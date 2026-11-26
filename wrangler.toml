@@ -23,3 +23,7 @@ simple = { limit = 120, period = 60 }
 name = "REPORTS"
 namespace_id = "1002"
 simple = { limit = 5, period = 60 }
+
+# (Nov 26) embed bench/localbit_test.py so /test.py always matches the repo
+[build]
+command = "node bench/embed.mjs"

@@ -33,3 +33,9 @@ For whoever works on LocalBit next (a person or an AI session). Keep it short an
 - **A run partly off the graphics card measures the wrong thing** - it is logged and left out of the published data.
 - **Silent substitutions mislead.** When a name maps to another model or a Mac or multi-card setup is assumed, the answer says so.
 - **Check the deploy copy.** Files copied between machines can lag - verify before deploying (tests run on the deploying machine).
+
+## Contributions (0.4, Nov 26)
+- `submissions` table (no IPs). Each result is compared with the estimate: ratio 0.35-2.2, on-card, known model and hardware -> status community, otherwise flagged with reasons.
+- Nightly exports submissions to backups/submissions.json; bench/publish_community.py keeps community rows, median per model/card/context/quant -> data/community.json, bundled at deploy.
+- bench/embed.mjs bundles bench/localbit_test.py into src/generated/test_script.js (run by build and test).
+- /stats `formats` and `format_misses` show which formats agents use and ask for.

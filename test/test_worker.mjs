@@ -14,7 +14,7 @@ check("initialize: the version asked for, tools offered, a name", st === 200 && 
 [st] = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" });
 check("a notification gets 202 and no body", st === 202, st);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-check("six tools: five read-only answers and report_issue", j.result.tools.length === 6 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 5 && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
+check("nine tools: seven read-only answers, report_issue and submit_result", j.result.tools.length === 9 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 7 && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
 [st, j] = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "check_fit", arguments: { model: "qwen3.8:27b", hardware: "RTX 3090", context: 16384 } } });
 const sc = j.result.structuredContent;
 check("check_fit on the test machine: fits, and the speed is the measured one", sc.verdict === "fits" && sc.basis === "measured" && /4[78]\.\d+ tokens\/s measured/.test(j.result.content[0].text), j.result.content[0].text);
@@ -152,4 +152,26 @@ check("the log holds what was asked and the agent's name - and no address", flat
 { const fi = await call("/favicon.ico"), ap = await call("/apple-touch-icon.png");
   const bytes = new Uint8Array(await ap.arrayBuffer());
   check("browser icons are served (favicon, phone home-screen icon as a real PNG)", fi.status === 200 && ap.status === 200 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47); }
+// contributions (0.4)
+{ const seen = []; const envS = { DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { seen.push([sql, v]); }, all: async () => ({ results: [] }) }) }) } };
+  const post = async (b) => { const w = []; const r = await worker.fetch(new Request("https://localbit.example.workers.dev/api/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }), envS, { waitUntil: p => w.push(p) }); await Promise.all(w); return [r.status, await r.json()]; };
+  const good = { model: "llama3.1:8b", quant: "Q4_K_M", hardware: "NVIDIA GeForce RTX 4060", memory_gb: 8, cards: 1, runtime: "Ollama 0.40", os: "Windows", recipe_version: 1, results: [{ context: 4096, gen_tps: 40, all_on_gpu: true }, { context: 16384, gen_tps: 37, prompt_tps: 2100, all_on_gpu: true }] };
+  const [s1, a1] = await post(good);
+  check("a plausible submission is recorded as a community result, one row per context, no address", s1 === 200 && a1.status === "community" && seen.filter(([q]) => /INSERT INTO submissions/.test(q)).length === 2 && !seen.some(([q, v]) => v.some(x => /\d+\.\d+\.\d+\.\d+/.test(String(x)))), a1);
+  const [s2, a2] = await post({ ...good, results: [{ context: 4096, gen_tps: 400, all_on_gpu: true }] });
+  check("an implausible speed is flagged, not published", s2 === 200 && a2.status === "flagged" && /far from the expected/.test(a2.answer), a2);
+  const [s3, a3] = await post({ ...good, results: [{ context: 4096, gen_tps: 40, all_on_gpu: false }] });
+  check("a run partly off the card is flagged", a3.status === "flagged" && /partly off/.test(a3.answer), a3);
+  const [s4, a4] = await post({ model: "x" });
+  check("an incomplete submission is rejected with what's needed", s4 === 400 && /needs model, hardware/.test(a4.answer), a4); }
+{ const [sk, jk] = await rpc({ jsonrpc: "2.0", id: 120, method: "tools/call", params: { name: "get_test_kit", arguments: {} } });
+  check("get_test_kit: the script, the recipe and the consent promise", /\/test\.py/.test(jk.result.content[0].text) && /asks yes\/no/.test(jk.result.content[0].text) && jk.result.structuredContent.recipe_url.endsWith("/recipe.json"));
+  const tp = await call("/test.py"), rc = await (await call("/recipe.json")).json();
+  check("/test.py serves the script; /recipe.json the recipe", tp.status === 200 && /Share these numbers with LocalBit\?/.test(await tp.text()) && rc.recipe_version === 1 && rc.tests.some(x => x.name === "gen"));
+  const [sd, jd] = await rpc({ jsonrpc: "2.0", id: 121, method: "tools/call", params: { name: "get_details", arguments: { name: "qwen3.8 27b" } } });
+  check("get_details (model): specs and the node's measurements", /27\.32B parameters|27B parameters|parameters/.test(jd.result.content[0].text) && /Measured on LocalBit's RTX 3090/.test(jd.result.content[0].text), jd.result.content[0].text);
+  const [sg, jg] = await rpc({ jsonrpc: "2.0", id: 122, method: "tools/call", params: { name: "get_details", arguments: { name: "rtx 4090" } } });
+  check("get_details (hardware): memory and bandwidth", /24 GB/.test(jg.result.content[0].text) && /bandwidth/.test(jg.result.content[0].text), jg.result.content[0].text);
+  const [si, ji] = await rpc({ jsonrpc: "2.0", id: 123, method: "tools/call", params: { name: "check_fit", arguments: { model: "llama 3.1 8b", hardware: "rtx 4060" } } });
+  check("an unmeasured setup invites the 3-minute test", /Not measured on this hardware yet/.test(ji.result.content[0].text) && /\/test/.test(ji.result.content[0].text)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);
