@@ -496,7 +496,7 @@ ${v.wh != null ? row(ICON.power, "Energy", "lower is better", v.wh.toFixed(2), "
   return `${nav}<div class="models">${cards}</div>
 <h2>Readings</h2>
 <dl class="defs"><dt>Speed</dt><dd>Words per second once it starts writing, in tokens. People read about 8; anything well above keeps ahead of you.</dd>
-<dt>Quality</dt><dd>Share of 60 questions answered right - 15 each of math, following instructions, facts and reading code. Written for LocalBit, graded by a script, no AI judge. Thinking off. A quick check, not a full benchmark: it separates small models from big ones, not near neighbours.</dd>
+<dt>Quality</dt><dd>Share of 60 questions answered right - 15 each of multi-step math, stacked format rules, less common facts and tricky code reading. Written for LocalBit, graded by a script, no AI judge. Thinking off. Version 2 (version 1 was too easy to tell models apart). A quick check, not a full benchmark.</dd>
 <dt>Reading</dt><dd>Wait before the first word when handed a 4,000-token (about 3,000-word) document. A model reads everything it is given before answering.</dd>
 <dt>Size</dt><dd>Card memory in use while running, including about 0.5-1 GB for the desktop.</dd>
 <dt>Energy</dt><dd>Electricity to write a 300-word answer. Each bar is the number beside it, against the other models here; Size is against the full card.</dd></dl>

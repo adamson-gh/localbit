@@ -17,9 +17,10 @@ def main():
     by = defaultdict(list)
     for r in rows:
         by[(r["model"], r.get("ctx"))].append(r)
-    quizzes = {}   # the newest quality check per model
+    quizzes = {}   # the newest quality check per model - only the current version of the check (v1 scores are kept in the raw runs)
+    qv = max([r.get("quiz_version", 1) for r in rows if r.get("test") == "quiz"] or [1])
     for r in rows:
-        if r.get("test") == "quiz" and r.get("n"):
+        if r.get("test") == "quiz" and r.get("n") and r.get("quiz_version", 1) == qv:
             quizzes[r["model"]] = r
     out = []
     for (model, ctx), rs in sorted(by.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)):
@@ -40,7 +41,7 @@ def main():
                     "runtime": "Ollama " + str(mid.get("ollama", "?")), "driver": mid.get("driver"), "runs": len(gens), "date": mid["date"][:10],
                     "source": "LocalBit test machine (RTX 3090, Windows) - middle of %d runs" % len(gens),
                     **({"quality_pct": round(100 * quizzes[model]["right"] / quizzes[model]["n"]), "quality_by_cat": quizzes[model].get("by_cat"),
-                        "quality_n": quizzes[model]["n"], "quality_date": quizzes[model]["date"][:10]} if model in quizzes else {})})
+                        "quality_n": quizzes[model]["n"], "quality_version": quizzes[model].get("quiz_version", 1), "quality_date": quizzes[model]["date"][:10]} if model in quizzes else {})})
     OUT.write_text(json.dumps({"_about": "Measured on LocalBit's RTX 3090 (Windows, Ollama): middle of 3 runs per model and context, temperature 0, made-up prompts. gpu_mem_peak_gib is the whole card's peak use (the desktop adds about 0.5-1 GB). power_w is the card's average draw while generating. quality_pct is the share of LocalBit's 60 script-graded questions answered right (math, instructions, facts, code; 4K context, temperature 0, thinking off). License: CC BY 4.0 - credit LocalBit.",
                                                            "measured": out}, indent=1), encoding="utf-8")
     print("PUBLISH rows", len(out), "models", len({o["model"] for o in out}))

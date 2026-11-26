@@ -171,6 +171,10 @@ def gen(model, prompt, ctx, predict):
 
 
 THINKS = {}
+try:
+    sys.path.insert(0, str(HERE)); import quiz as _QZ; QUIZ_VERSION = _QZ.VERSION
+except Exception:
+    QUIZ_VERSION = 1
 
 
 def model_meta(model):
@@ -194,6 +198,8 @@ def done_recently(model, days=30, test="gen", ver=None):
         except ValueError:
             continue
         if r.get("model") == model and r.get("test") == test and (r.get("gen_tps") if test == "gen" else r.get("n")):
+            if test == "quiz" and r.get("quiz_version", 1) != QUIZ_VERSION:   # (Nov 26) a new version of the check is re-run
+                continue
             if ver and test == "gen" and (r.get("ollama") != ver.get("ollama") or r.get("driver") != ver.get("driver")):
                 return False
             return (time.time() - datetime.fromisoformat(r["date"]).timestamp()) < days * 86400
@@ -248,7 +254,7 @@ def quiz(model, ver):
             missed.append(q["id"])
     n = len(QZ.Q)
     row = {"date": datetime.now().isoformat(timespec="seconds"), "gpu": "rtx-3090", "model": model, "test": "quiz", "n": n,
-           "right": n - len(missed), "by_cat": got, "missed": missed, "quiz_version": 1, "secs": round(time.time() - t0), **meta, **ver}
+           "right": n - len(missed), "by_cat": got, "missed": missed, "quiz_version": QZ.VERSION, "secs": round(time.time() - t0), **meta, **ver}
     with open(RUNS, "a", encoding="utf-8") as f:
         f.write(json.dumps(row) + "\n")
     log(model, "quiz", row["right"], "/", n, got)

@@ -67,8 +67,9 @@ check("a request from the phone does", rb.assistant_busy())
 sys.path.insert(0, str(bench)); import quiz as QZ
 check("the quiz: 60 questions, 15 per group", len(QZ.Q) == 60 and all(sum(1 for q in QZ.Q if q["cat"] == c) == 15 for c in ("math", "instructions", "facts", "code")))
 ix = {q["id"]: q for q in QZ.Q}
-check("grading: right answers pass, wrong ones fail", QZ.grade(ix["m01"], "The change is $29.") and not QZ.grade(ix["m01"], "31") and QZ.grade(ix["f07"], "CO2")
-      and QZ.grade(ix["i04"], '```json\n{"name": "x", "age": 1}\n```') and not QZ.grade(ix["i02"], "Yes") and QZ.grade(ix["c13"], "a-b-c"))
+check("grading (version 2): right answers pass, wrong ones fail", QZ.VERSION == 2 and QZ.grade(ix["m01"], "The final price is $48.") and not QZ.grade(ix["m01"], "50")
+      and QZ.grade(ix["f01"], "Tungsten") and QZ.grade(ix["f04"], "Gabriel García Márquez") and QZ.grade(ix["i03"], "[2, 3, 5, 7, 11]") and not QZ.grade(ix["i13"], "No, 91 = 7 x 13")
+      and QZ.grade(ix["c08"], "b10") and len(QZ.Q1) == 60)
 # nightly: the live-site check, re-measuring after a runtime update, and leaving out runs partly off the card
 class SiteH(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
