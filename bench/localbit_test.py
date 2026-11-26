@@ -135,6 +135,32 @@ def text_models(tags):
     return out
 
 
+def unload(name, wait=20):
+    """Ask Ollama to unload a model and wait until it's really gone (the request returns before the old copy stops - Nov 26:
+    a test reused a processor copy in that gap)."""
+    try:
+        http(OLLAMA + "/api/generate", {"model": name, "keep_alive": 0}, timeout=60)
+    except Exception:
+        return
+    end = time.time() + wait
+    while time.time() < end:
+        try:
+            if not any(m.get("name") == name for m in http(OLLAMA + "/api/ps", timeout=10).get("models", [])):
+                return
+        except Exception:
+            return
+        time.sleep(0.5)
+
+
+def on_card(model):
+    """True/False whether the loaded copy sits fully in the card's memory; None when Ollama doesn't say."""
+    try:
+        m = next((m for m in http(OLLAMA + "/api/ps", timeout=10).get("models", []) if m.get("name") == model), None)
+    except Exception:
+        return None
+    return None if not m else m.get("size_vram", 0) >= m.get("size", 1)
+
+
 def free_card(model, ask=input):
     """(Nov 26, owner's own run: a model already loaded shared the card and the first context ran at a sixth of its speed) the node
     measures with nothing else loaded - offer to unload the others (they reload the next time they're used)."""
@@ -150,10 +176,7 @@ def free_card(model, ask=input):
         print("(Not unloading them - numbers may come out low.)\n"); return
     if ask("Unload them for a fair test? They load again the next time you use them. [Y/n] ").strip().lower() in ("", "y", "yes"):
         for m in others:
-            try:
-                http(OLLAMA + "/api/generate", {"model": m["name"], "keep_alive": 0}, timeout=60)
-            except Exception:
-                pass
+            unload(m["name"])
         print("Unloaded.\n")
 
 
@@ -206,11 +229,9 @@ def run():
     except Exception:
         ver = None
     free_card(model)
-    try:   # (Nov 26 diagnostic: the model was already loaded by another program on the processor only, and a test at the same context
-        # reused that copy - 25 instead of 150 tokens/s) start from a fresh load, as the node does; it reloads on its own when next used
-        http(OLLAMA + "/api/generate", {"model": model, "keep_alive": 0}, timeout=60)
-    except Exception:
-        pass
+    # (Nov 26 diagnostic: the model was already loaded by another program on the processor only, and a test at the same context
+    # reused that copy - 25 instead of 150 tokens/s) start from a fresh load, as the node does; it reloads on its own when next used
+    unload(model)
     print("\nTesting %s on %s - about 3 minutes. Close other heavy programs for a fair result.\n" % (model, hw["hardware"]))
     G = next(t for t in R["tests"] if t["name"] == "gen")
     P = next(t for t in R["tests"] if t["name"] == "prompt_4k")
@@ -218,6 +239,10 @@ def run():
     for ctx in R["contexts"]:
         speeds = []
         gen(model, "Hi", ctx, 1, thinks)   # load the model at this context first, so loading isn't measured
+        if on_card(model) is False:   # still the processor copy (or it doesn't fit): reload once and look again
+            unload(model); gen(model, "Hi", ctx, 1, thinks)
+            if on_card(model) is False:
+                print("  (at %d context the model doesn't fit fully in the card's memory - this is the real speed for your hardware)" % ctx)
         for i in range(G["runs"]):
             r = gen(model, G["prompt"], ctx, G["num_predict"], thinks)
             if r.get("eval_duration"):

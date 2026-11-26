@@ -5,7 +5,7 @@ import json, os, subprocess, sys, tempfile, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
-posted = []; unloaded = []; STATE = {"other_loaded": False}
+posted = []; unloaded = []; STATE = {"other_loaded": False, "loaded": True, "cpu_once": False}
 class O(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _j(self, o):
@@ -13,14 +13,19 @@ class O(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/tags": return self._j({"models": [{"name": "made-up:7b"}, {"name": "nomic-embed-text:latest"}, {"name": "broken:1b"}]})
         if self.path == "/api/version": return self._j({"version": "0.0-test"})
-        if self.path == "/api/ps": return self._j({"models": [{"name": "made-up:7b", "size": 5 * 2**30, "size_vram": 5 * 2**30}] + ([{"name": "other:3b", "size": 3 * 2**30, "size_vram": 3 * 2**30}] if STATE["other_loaded"] else [])})
+        if self.path == "/api/ps": return self._j({"models": ([{"name": "made-up:7b", "size": 5 * 2**30, "size_vram": (0 if STATE["cpu_once"] else 5 * 2**30)}] if STATE["loaded"] else []) + ([{"name": "other:3b", "size": 3 * 2**30, "size_vram": 3 * 2**30}] if STATE["other_loaded"] else [])})
         self._j({})
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["content-length"])) or b"{}")
         if self.path == "/api/show": return self._j({"details": {"quantization_level": "Q4_K_M"}, "capabilities": ["embedding"] if "embed" in body.get("model", "") else ["completion"]})
-        if self.path == "/api/generate" and body.get("keep_alive") == 0: unloaded.append(body["model"]); STATE["other_loaded"] = STATE["other_loaded"] and body["model"] != "other:3b"; return self._j({"done": True})
+        if self.path == "/api/generate" and body.get("keep_alive") == 0:
+            unloaded.append(body["model"]); STATE["other_loaded"] = STATE["other_loaded"] and body["model"] != "other:3b"
+            if body["model"] == "made-up:7b":
+                STATE["loaded"] = False; STATE["cpu_once"] = False
+            return self._j({"done": True})
         if self.path == "/api/generate" and body.get("model") == "broken:1b":
             self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"model runner crashed"}'); return
+        if self.path == "/api/generate": STATE["loaded"] = True
         if self.path == "/api/generate": return self._j({"eval_count": 256, "eval_duration": int(4e9), "prompt_eval_count": 4000, "prompt_eval_duration": int(2e9)})
         if self.path == "/api/submit": posted.append(body); return self._j({"answer": "Thank you - recorded (made-up)."})
         self._j({})
@@ -57,6 +62,10 @@ lbt2.OLLAMA = url
 STATE["other_loaded"] = True; _before = len(unloaded); lbt2.free_card("made-up:7b", ask=lambda q: "")
 check("asked and answered yes (Enter): the other model is unloaded", unloaded[_before:] == ["other:3b"], unloaded)
 check("every run starts from a fresh load of the tested model (an existing copy may sit on the processor)", "made-up:7b" in unloaded, unloaded)
+import time as _t
+STATE["cpu_once"] = True; STATE["loaded"] = True; _n = len(unloaded); _t0 = _t.time()
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+check("a copy found on the processor is unloaded and reloaded before timing, without waiting out the timeout", r.returncode == 0 and unloaded[_n:].count("made-up:7b") >= 1 and _t.time() - _t0 < 30, (unloaded[_n:], round(_t.time() - _t0, 1), r.stdout[-200:]))
 srv.shutdown()
 # the community publisher: only plausible rows, middle value, count
 tmp = Path(tempfile.mkdtemp())
