@@ -39,3 +39,6 @@ For whoever works on LocalBit next (a person or an AI session). Keep it short an
 - Nightly exports submissions to backups/submissions.json; bench/publish_community.py keeps community rows, median per model/card/context/quant -> data/community.json, bundled at deploy.
 - bench/embed.mjs bundles bench/localbit_test.py into src/generated/test_script.js (run by build and test).
 - /stats `formats` and `format_misses` show which formats agents use and ask for.
+
+## Fresh-agent test (Nov 26)
+- bench/agent_eval.py: a local model with no knowledge of LocalBit answers 9 realistic questions two ways - connected (sees only tools/list) and browsing (only the site address and a read-page tool). submit_result and report_issue are answered by the test itself, never sent. User-agent "localbit-self-test", left out of visitor counts (/stats self_tests counts it). Results in bench/agent_eval.json (not committed).

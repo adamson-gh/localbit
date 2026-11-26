@@ -12,3 +12,4 @@ bench/status.json
 __pycache__/
 *.pyc
 src/generated/
+bench/agent_eval.json

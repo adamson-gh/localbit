@@ -5,7 +5,7 @@
   "description": "Will this AI model run on this hardware? A public MCP server and API for AI agents.",
   "type": "module",
   "scripts": {
-    "test": "node bench/embed.mjs && node test/test_estimate.mjs && node test/test_worker.mjs && node test/test_replay.mjs && python test/test_bench.py && python test/test_script.py",
+    "test": "node bench/embed.mjs && node test/test_estimate.mjs && node test/test_worker.mjs && node test/test_replay.mjs && python test/test_bench.py && python test/test_script.py && python test/test_agent_eval.py",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "build": "node bench/embed.mjs"

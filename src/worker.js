@@ -22,7 +22,9 @@ const asOfText = () => `Data as of: specs ${AS_OF.specs}` + (AS_OF.measured ? `,
 // (Nov 25 check: a spike was ClaudeBot reading all ~800 model/card pages) search and AI crawlers, counted apart from real asks
 const CRAWLERS = ["ClaudeBot", "Claude-SearchBot", "GPTBot", "OAI-SearchBot", "Googlebot", "Google-Extended", "bingbot", "Applebot", "PerplexityBot",
   "Meta-ExternalAgent", "Amazonbot", "Bytespider", "CCBot", "DuckAssistBot", "YandexBot", "Baiduspider", "BrickBlueBot", "AhrefsBot", "SemrushBot"];
-const NOT_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') NOT LIKE '%${c}%'`).join(" AND ") + ")";
+// (Nov 26) the owner's own fresh-agent test (bench/agent_eval.py) - left out of visitor counts, counted on its own
+const SELF_UA = "localbit-self-test";
+const NOT_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') NOT LIKE '%${c}%'`).join(" AND ") + ` AND coalesce(ua, '') NOT LIKE '%${SELF_UA}%')`;
 const IS_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') LIKE '%${c}%'`).join(" OR ") + ")";
 // paths only scanners ask for (looking for weak websites) - counted, but told apart from addresses an agent might expect
 const SCANNER_SQL = "(path LIKE '%wp-%' OR path LIKE '%.php%' OR path LIKE '%.env%' OR path LIKE '%.git%' OR path LIKE '%admin%' OR path LIKE '%phpmyadmin%' OR path LIKE '%.asp%' OR path LIKE '%cgi-bin%' OR path LIKE '%.sql%' OR path LIKE '%config%' OR path LIKE '%backup%' OR path LIKE '%.bak%' OR path LIKE '%xmlrpc%')";
@@ -707,6 +709,7 @@ async function stats(request, env) {
     by_day: await q("SELECT substr(ts,1,10) day, count(*) n FROM calls WHERE ts >= ? GROUP BY day ORDER BY day"),
     by_kind: await q("SELECT kind, count(*) n FROM calls WHERE ts >= ? GROUP BY kind ORDER BY n DESC"),
     by_agent: await q(`SELECT coalesce(nullif(client,''), ua) agent, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} GROUP BY agent ORDER BY n DESC LIMIT 25`),
+    self_tests: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND ua LIKE '%${SELF_UA}%'`).catch(() => [{ n: 0 }]))[0]?.n || 0,
     crawlers: await q(`SELECT ua crawler, count(*) n FROM calls WHERE ts >= ? AND ${IS_CRAWL} GROUP BY ua ORDER BY n DESC LIMIT 15`),
     crawl_total: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND ${IS_CRAWL}`))[0]?.n || 0,
     by_tool: await q("SELECT tool, count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL GROUP BY tool ORDER BY n DESC"),
