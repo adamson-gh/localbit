@@ -156,6 +156,9 @@ function checkFit(args) {
   if (g.asked_as) lines.push(`Note: "${g.asked_as}" is sized as ${g.name}.`);
   if (g.vendor === "apple" && g.matched === "generic") lines.push(`Note: a Mac LocalBit doesn't list by name - unified memory, about 75% usable for the model, typical ${g.name.split(" (")[0]} bandwidth.`);
   if (m.matched === "generic" || g.matched === "generic") lines.push("Note: estimated from size alone - give the exact model or card name for a closer answer.");
+  // (Nov 26, fresh-agent test: a small model read the size-only estimate as a real answer) say so first, in plain words
+  if (m.matched === "generic") { const near = closest(String(args.model), DATA.models);
+    lines.unshift(`LocalBit doesn't know the model "${String(args.model).slice(0, 60)}" - this is a rough estimate for a typical ${m.params_b}B model, not that model's own design.${near.length ? " Closest known: " + near.join(", ") + "." : ""}`); }
   if (!m.verified && m.matched === "known") lines.push("Note: this model's specifications are from its published config and not yet re-checked.");
   const url = m.matched === "known" && g.matched === "known" && !g.cards ? `${SITE}/run/${m.id}/on/${g.id}` :
     `${SITE}/check?model=${encodeURIComponent(args.model)}&hardware=${encodeURIComponent(args.hardware)}`;
@@ -483,7 +486,8 @@ function home(origin) {
   const nMeas = new Set((measuredFile.measured || []).map(r => r.model)).size;
   return page("LocalBit - will this AI model run on my hardware?", `<h1>Will this AI model run on my hardware?</h1>
 <p class="lede">Memory, speed and a verdict for any local model on your graphics card or Mac. Estimated from published specs. Measured where the node has run it.</p>
-<div class="card">${askBox(origin)}<div class="hint">Try: <a href="${origin}/check?model=llama%203.1%208b&hardware=rtx%204060">Llama 3.1 8B on an RTX 4060</a> · <a href="${origin}/check?model=qwen3%2030b&hardware=rtx%204090">Qwen3 30B on an RTX 4090</a> · <a href="${origin}/check?model=llama%203.3%2070b&hardware=rtx%203090">Llama 3.3 70B on an RTX 3090</a></div></div>
+<div class="card">${askBox(origin)}<div class="hint">Try: <a href="${origin}/check?model=llama%203.1%208b&hardware=rtx%204060">Llama 3.1 8B on an RTX 4060</a> · <a href="${origin}/check?model=qwen3%2030b&hardware=rtx%204090">Qwen3 30B on an RTX 4090</a> · <a href="${origin}/check?model=llama%203.3%2070b&hardware=rtx%203090">Llama 3.3 70B on an RTX 3090</a></div>
+<div class="hint">Or ask by address - any model, any card: <code>${origin}/check?model=&lt;model&gt;&amp;hardware=&lt;card&gt;&amp;context=&lt;tokens&gt;</code> (JSON: <code>/api/check</code> with the same words; names: <a href="${origin}/api/hardware">/api/hardware</a>, <a href="${origin}/api/models">/api/models</a>).</div></div>
 <div class="grid3" style="margin-top:22px">
 <div class="card"><h3>Live node</h3><p>An RTX 3090 in the field, testing models every night. ${nMeas} logged so far. <a href="${origin}/measured">Latest tested</a>.</p></div>
 <div class="card"><h3>Labeled readings</h3><p>Every answer says estimated or measured, and when it was last read.</p></div>

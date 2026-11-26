@@ -174,4 +174,8 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("get_details (hardware): memory and bandwidth", /24 GB/.test(jg.result.content[0].text) && /bandwidth/.test(jg.result.content[0].text), jg.result.content[0].text);
   const [si, ji] = await rpc({ jsonrpc: "2.0", id: 123, method: "tools/call", params: { name: "check_fit", arguments: { model: "llama 3.1 8b", hardware: "rtx 4060" } } });
   check("an unmeasured setup invites the 3-minute test", /Not measured on this hardware yet/.test(ji.result.content[0].text) && /\/test/.test(ji.result.content[0].text)); }
+{ const r = await (await call("/api/check?model=zephyrion%2040b&hardware=rtx%204090")).json();
+  check("an unknown model says so first, in plain words", /^LocalBit doesn't know the model "zephyrion 40b" - this is a rough estimate for a typical 40B model/.test(r.answer), r.answer.slice(0, 200));
+  const h = await (await call("/")).text();
+  check("the home page shows how to ask by address (for agents that can only read pages)", /Or ask by address - any model, any card: <code>[^<]*\/check\?model=&lt;model&gt;&amp;hardware=&lt;card&gt;/.test(h)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

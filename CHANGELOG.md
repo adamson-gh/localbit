@@ -4,6 +4,8 @@
 - Added the RTX 4070 Ti (12 GB, 504 GB/s).
 - A misspelled model name ("lama3.1 8b") now finds the known model - only when every number matches.
 - `/api/list_known` works as an address (a newcomer agent guessed it).
+- An unknown model's answer now opens by saying LocalBit doesn't know it (a small model took the size-only estimate as real).
+- The home page shows how to ask by address, for agents that can only read pages.
 - Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
 
 ## 0.4.0 - 2026-11-26
