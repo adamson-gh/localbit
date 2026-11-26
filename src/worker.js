@@ -623,6 +623,12 @@ async function handle(request, env, ctx) {
     if (path === "/api/log") { const o = nodeLog(sp); return json({ answer: o.text, ...o.data }); }
     if (path === "/measured") { logCall(env, ctx, { kind: "measured", ua }); return measuredPage(origin); }
     if (path === "/about") { logCall(env, ctx, { kind: "about", ua }); return about(origin); }
+    // (Nov 25) standard discovery files: Glama's ownership claim, and the proposed MCP server description
+    // the maintainer email is a Cloudflare secret (GLAMA_EMAIL), not in the public repo; no secret, no file
+    if (path === "/.well-known/glama.json" && env && env.GLAMA_EMAIL) return json({ "$schema": "https://glama.ai/mcp/schemas/connector.json", maintainers: [{ email: env.GLAMA_EMAIL }] });
+    if (path === "/.well-known/mcp.json") return json({ name: "LocalBit", description: "Will this AI model run on this hardware? Memory needed and estimated or measured speed for local models on graphics cards and Macs.",
+      version: VERSION, endpoint: SITE + "/mcp", transport: "streamable-http", protocol_versions: PROTOCOLS, authentication: "none",
+      tools: TOOLS.map(x => x.name), registry: siteFile.registry_name, documentation: SITE + "/llms.txt", website: SITE, repository: siteFile.repo });
     if (path === "/llms.txt") { logCall(env, ctx, { kind: "llms_txt", ua }); return new Response(llmsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8" } }); }
     if (path === "/sitemap.xml") return sitemap(origin);
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
