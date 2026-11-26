@@ -190,4 +190,16 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("the test page: one copyable line per system (python3 on Mac), the other folded by script, the community count", /data-cmd="curl -sO [^"]*\/t\.py &amp;&amp; python3 t\.py"/.test(tp) && /data-cmd="irm [^"]*\/t\.py -OutFile t\.py; py t\.py"/.test(tp) && /Or ask your AI assistant/.test(tp) && /No community results yet/.test(tp) && (tp.match(/<h1>Local AI models|<h1>Measure your hardware<\/h1>/) || []).length === 1);
   const hp = await (await call("/")).text();
   check("the home page: new title, and an invitation to measure untested hardware", /<h1>Local AI models, checked against your hardware<\/h1>/.test(hp) && /<a href="[^"]*\/test">Measure it<\/a> in 3 minutes/.test(hp) && !/Will this AI model run/.test(hp.replace(/<meta[^>]*>/g, ""))); }
+// suggestion box (Nov 26)
+{ const seen = []; const envS = { DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { seen.push([sql, v]); }, all: async () => ({ results: [] }) }) }) } };
+  const send = async (body) => { const w = []; const r = await worker.fetch(new Request("https://localbit.example.workers.dev/api/report", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body }), envS, { waitUntil: p => w.push(p) }); await Promise.all(w); return [r.status, await r.text()]; };
+  const sp = await (await call("/suggest")).text();
+  check("/suggest: one box, no email field, a hidden trap for bots; linked from every footer", /name="problem" value="suggestion"/.test(sp) && !/type="email"/.test(sp) && /name="website"/.test(sp) && /href="[^"]*\/suggest">Suggest<\/a>/.test(await (await call("/about")).text()));
+  const [s1, b1] = await send("problem=suggestion&note=" + encodeURIComponent("add the RTX 5060 Ti - mail me at someone@example.com"));
+  const row = seen.find(([q]) => /INSERT INTO reports/.test(q));
+  check("a suggestion is stored as 'suggestion', with the email removed", s1 === 200 && /suggestion recorded/.test(b1) && row && row[1].includes("suggestion") && !row[1].some(v => /@example\.com/.test(String(v))), row && row[1]);
+  seen.length = 0; await send("problem=suggestion&note=buy+now&website=http%3A%2F%2Fspam.example");
+  check("a bot that fills the hidden field is thanked but nothing is stored", !seen.some(([q]) => /INSERT INTO reports/.test(q)));
+  const [, jb] = await rpc({ jsonrpc: "2.0", id: 130, method: "tools/call", params: { name: "report_issue", arguments: { problem: "suggestion", note: "x" } } });
+  check("agents can't file 'suggestion' through report_issue (it becomes 'other')", jb.result.structuredContent.problem === "other", jb.result.structuredContent); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

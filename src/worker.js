@@ -355,13 +355,15 @@ const scrub = s => String(s || "").replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, "[email r
   .replace(/https?:\/\/\S+/g, "[link removed]").replace(/[\u0000-\u001f]/g, " ").slice(0, 500);
 const num = (v, lo, hi) => { const n = +v; return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
 function saveReport(env, ctx, a, source, client) {
-  const problem = PROBLEMS.includes(a.problem) ? a.problem : "other";
+  // (Nov 26, owner: "build suggestion box") "suggestion" comes only from the site's Suggest form
+  const problem = PROBLEMS.includes(a.problem) || (a.problem === "suggestion" && source === "form") ? a.problem : "other";
   const m = a.model ? findModel(a.model, DATA.models) : null, g = a.hardware ? findGpu(a.hardware, DATA.gpus) : null;
   const row = [new Date().toISOString(), source, String(client || "").slice(0, 80), String(a.model || "").slice(0, 80) || null, String(a.hardware || "").slice(0, 80) || null,
     m ? m.id : null, g ? g.id : null, problem, num(a.observed_tokens_per_s, 0, 100000), num(a.observed_memory_gb, 0, 4096), num(a.context, 0, 10000000),
     String(a.runtime || "").slice(0, 60) || null, scrub(a.note) || null];
   if (env && env.DB) ctx.waitUntil(env.DB.prepare("INSERT INTO reports (ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
     .bind(...row).run().catch(() => {}));
+  if (problem === "suggestion") return { text: "Thanks - suggestion recorded. It's read by the owner; nothing personal is kept.", data: { recorded: true, problem }, log: { verdict: "suggestion" } };
   return { text: "Thanks - LocalBit recorded the report" + (m || g ? ` (${[m && m.name, g && g.name].filter(Boolean).join(" on ")})` : "") +
     ". Reports are read by the owner and used to correct the data; nothing personal is kept.", data: { recorded: true, problem }, log: { model_id: m && m.id, gpu_id: g && g.id, verdict: "report" } };
 }
@@ -488,7 +490,7 @@ function page(title, body, origin, desc) {
 <meta name="color-scheme" content="light"><style>:root{color-scheme:light}${CSS}</style></head><body>
 <header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/log">Node log</a><a href="${origin}/test">Test yours</a><a href="${origin}/compare">Compare</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
-<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/docs">Docs</a><a href="${origin}/privacy">Privacy</a><a href="${origin}/about">About &amp; data license</a><a href="${siteFile.repo}">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
+<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/suggest">Suggest</a><a href="${origin}/docs">Docs</a><a href="${origin}/privacy">Privacy</a><a href="${origin}/about">About &amp; data license</a><a href="${siteFile.repo}">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
 </body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 function askBox(origin, model = "", hw = "") {
@@ -553,6 +555,14 @@ ${line("os-win", "Windows", "- open PowerShell (Start, type PowerShell), paste, 
 <script>(function(){var w=/Win/.test(navigator.platform||navigator.userAgent),m=document.getElementById(w?"os-mac":"os-win");if(m)m.style.display="none";
 var a=document.getElementById("show-all");if(a)a.onclick=function(e){e.preventDefault();m.style.display="";a.style.display="none"};
 document.querySelectorAll("button.copy").forEach(function(b){b.onclick=function(){var c=b.getAttribute("data-cmd");(navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(function(){b.textContent="Copied"},function(){var r=document.createRange();r.selectNodeContents(b.previousElementSibling);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent="Press Ctrl+C"});setTimeout(function(){b.textContent="Copy"},2500)}})})();</script>`, origin);
+}
+function suggestPage(origin) {
+  return page("Suggest - LocalBit", `<h1>Suggest</h1><p class="lede">A missing card or model, something wrong or unclear, an idea.</p>
+<form method="post" action="${origin}/api/report" class="card"><input type="hidden" name="problem" value="suggestion">
+<p style="display:none"><label>Leave empty <input name="website" tabindex="-1" autocomplete="off"></label></p>
+<p style="margin-top:0"><textarea name="note" maxlength="500" rows="5" required placeholder="e.g. add the RTX 5060 Ti, or: the speed for my Mac looks too high"></textarea></p>
+<p class="small">No email or sign-in. Links, emails and phone numbers are removed. Leave personal details out.</p>
+<p style="margin-bottom:0"><button>Send</button></p></form>`, origin);
 }
 function privacyPage(origin) {
   return page("Privacy policy - LocalBit", `<h1>Privacy policy</h1><p class="lede">LocalBit keeps what was asked, never who asked.</p>
@@ -723,7 +733,7 @@ function llmsTxt(origin) {
     `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
 }
 function sitemap(origin) {
-  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/test", origin + "/docs", origin + "/privacy", origin + "/about"];
+  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/test", origin + "/suggest", origin + "/docs", origin + "/privacy", origin + "/about"];
   for (const m of DATA.models) for (const g of DATA.gpus) urls.push(`${origin}/run/${m.id}/on/${g.id}`);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc>${AS_OF.specs ? `<lastmod>${[AS_OF.specs, AS_OF.measured].filter(Boolean).sort().pop()}</lastmod>` : ""}</url>`).join("\n")}\n</urlset>`,
     { headers: { "content-type": "application/xml" } });
@@ -803,6 +813,7 @@ async function handle(request, env, ctx) {
       const isForm = (request.headers.get("content-type") || "").includes("form");
       let a = {};
       try { a = isForm ? Object.fromEntries(new URLSearchParams(raw)) : JSON.parse(raw); } catch { return json({ error: "send JSON" }, 400); }
+      if (isForm && a && a.website) return page("Thanks - LocalBit", `<h1>Thanks</h1><p><a href="${origin}/">Back to LocalBit</a></p>`, origin);   // filled the hidden field: a bot
       const o = saveReport(env, ctx, a || {}, isForm ? "form" : "api", ua);
       logCall(env, ctx, { kind: "report", ua, tool: "report_issue", model_q: a.model, hw_q: a.hardware, ...o.log });
       return isForm ? page("Thanks - LocalBit", `<h1>Thanks</h1><p>${esc(o.text)}</p><p><a href="${origin}/">Back to LocalBit</a></p>`, origin) : json({ answer: o.text, ...o.data });
@@ -829,6 +840,7 @@ async function handle(request, env, ctx) {
       return new Response(Uint8Array.from(atob(ICON_PNG_B64), c => c.charCodeAt(0)), { headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" } });
     if (path === "/recipe.json") { logCall(env, ctx, { kind: "recipe", ua }); return json(recipeFile); }
     if (path === "/t.py" || path === "/test.py") { logCall(env, ctx, { kind: "test_script", ua }); return new Response(TEST_SCRIPT, { headers: { "content-type": "text/x-python; charset=utf-8", "content-disposition": 'attachment; filename="localbit_test.py"' } }); }
+    if (path === "/suggest") { logCall(env, ctx, { kind: "page", ua }); return suggestPage(origin); }
     if (path === "/test") { logCall(env, ctx, { kind: "test_page", ua }); return testPage(origin); }
     if (path === "/api/details") { const o = getDetails(sp); logCall(env, ctx, { kind: "api", ua, tool: "get_details", model_q: sp.name, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
     if (path === "/logo.svg") return new Response(LOGO_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
