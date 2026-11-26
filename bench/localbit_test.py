@@ -2,9 +2,9 @@
 """LocalBit's 3-minute test - measure a local AI model on YOUR machine, the same way LocalBit's own RTX 3090 node does, and
 (only if you say yes) share the numbers so everyone gets real results for your hardware.
 
-    python3 localbit_test.py                      pick a model you already have in Ollama (Windows: py localbit_test.py)
-    python3 localbit_test.py --model llama3.1:8b  test that one
-    python3 localbit_test.py --dry-run            measure and show what would be sent, send nothing
+    python3 t.py                      pick a model you already have in Ollama (Windows: py t.py)
+    python3 t.py --model llama3.1:8b  test that one
+    python3 t.py --dry-run            measure and show what would be sent, send nothing
 
 What it does: talks to your local Ollama (http://127.0.0.1:11434) only, runs the published recipe (localbit .../recipe.json),
 reads your graphics card's or Mac's name and memory size. Before anything leaves your computer it prints exactly what would be
@@ -61,7 +61,7 @@ def settle(hw, known=None, ask=input):
         print("Which of these is it?")
         for i, k in enumerate(c, 1):
             print("%2d. %s (%s GB)" % (i, k["name"], k.get("vram_gb")))
-        a = ask("Number (or Enter to keep '%s'): " % hw["hardware"]).strip()
+        a = ask("Number (or Enter to keep '%s'): " % hw["hardware"]).strip() if (ask is not input or sys.stdin.isatty()) else ""
         pick = c[int(a) - 1] if a.isdigit() and 1 <= int(a) <= len(c) else None
     else:
         pick = None

@@ -250,12 +250,13 @@ function communityLine() {
 function getTestKit() {
   const text = [`LocalBit's 3-minute test measures a model on your own machine the same way LocalBit's RTX 3090 node does, then asks before sharing anything.`,
     `1. Needs Python 3.8+ and Ollama with the model pulled.`, `2. Copy-paste one line - it downloads the script and runs it (source: ${siteFile.repo}/blob/main/bench/localbit_test.py):`,
-    `   Mac/Linux: curl -sO ${SITE}/test.py && python3 test.py`,
-    `   Windows (PowerShell): irm ${SITE}/test.py -OutFile test.py; py test.py`,
+    `   Mac/Linux: curl -sO ${SITE}/t.py && python3 t.py`,
+    `   Windows (PowerShell): irm ${SITE}/t.py -OutFile t.py; py t.py`,
+    `   If you have a shell tool and the user agrees: run it with --model <ollama tag> --dry-run (sends nothing), show the user the printed JSON, and only if they say yes send it with submit_result.`,
     `3. Pick a model from the list (or add --model <ollama tag>; --dry-run measures without sending).`,
     `It shows exactly what would be sent - model, card or Mac name and memory, speeds, Ollama version, OS - and asks yes/no. No names, file paths or IPs.`,
     `Recipe (if you'd rather run it yourself): ${SITE}/recipe.json - then send results with submit_result.`, communityLine()].join("\n");
-  return { text, data: { script_url: SITE + "/test.py", recipe_url: SITE + "/recipe.json", recipe_version: recipeFile.recipe_version, page: SITE + "/test" }, log: { verdict: "test_kit" } };
+  return { text, data: { script_url: SITE + "/t.py", recipe_url: SITE + "/recipe.json", recipe_version: recipeFile.recipe_version, page: SITE + "/test" }, log: { verdict: "test_kit" } };
 }
 function checkSubmission(b) {
   const reasons = [], rows = [];
@@ -450,7 +451,7 @@ button,.btn{font:inherit;font-weight:600;padding:11px 18px;border:0;border-radiu
 ul.tips{margin:8px 0 0;padding-left:20px}ul.tips li{margin:4px 0}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.grid3 .card{margin:0}
 .grid3 h3{margin:0 0 6px;font-size:1rem}.grid3 p{margin:0;color:var(--mute);font-size:.94rem}
-code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere}main,.card{min-width:0;overflow-wrap:anywhere}table{max-width:100%}.scroll{overflow-x:auto}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
+code,pre{font:.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);border-radius:6px;padding:.12rem .4rem}code{overflow-wrap:anywhere}.cmd{display:flex;gap:8px;align-items:stretch;margin-bottom:14px}.cmd code{flex:1;display:block;padding:10px 12px;font-size:.9rem}.copy{font:inherit;font-size:.9rem;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap}.copy:hover{border-color:var(--accent)}pre{white-space:pre-wrap;overflow-wrap:anywhere}main,.card{min-width:0;overflow-wrap:anywhere}table{max-width:100%}.scroll{overflow-x:auto}pre{padding:12px 14px;overflow:auto;white-space:pre-wrap}
 table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.8rem;vertical-align:bottom}td:first-child,th:first-child{text-align:left;white-space:normal}
 .scroll{overflow-x:auto}.jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 6px;font-size:.92rem}.jump a{margin-left:0;color:var(--mute);border-bottom:1px dotted var(--line)}.jump a:hover{color:var(--ink);text-decoration:none}
@@ -495,22 +496,21 @@ function askBox(origin, model = "", hw = "") {
 <input name="hardware" placeholder="Card or Mac - e.g. RTX 4060, M4 Max, 12 GB" value="${esc(hw)}" aria-label="Hardware"><button>Check</button></form>`;
 }
 function home(origin) {
-  const nMeas = new Set((measuredFile.measured || []).map(r => r.model)).size;
-  return page("LocalBit - will this AI model run on my hardware?", `<h1>Will this AI model run on my hardware?</h1>
-<p class="lede">Memory, speed and a verdict for any local model on your graphics card or Mac. Estimated from published specs. Measured where the node has run it.</p>
+  const nMeas = new Set((measuredFile.measured || []).map(r => r.model)).size, k = communityCount();
+  return page("LocalBit - local AI models checked against your hardware", `<h1>Local AI models, checked against your hardware</h1>
+<p class="lede">Memory, speed and fit for any model on any graphics card or Mac. Measured where tested, estimated elsewhere.</p>
 <div class="card">${askBox(origin)}<div class="hint">Try: <a href="${origin}/check?model=llama%203.1%208b&hardware=rtx%204060">Llama 3.1 8B on an RTX 4060</a> · <a href="${origin}/check?model=qwen3%2030b&hardware=rtx%204090">Qwen3 30B on an RTX 4090</a> · <a href="${origin}/check?model=llama%203.3%2070b&hardware=rtx%203090">Llama 3.3 70B on an RTX 3090</a></div>
-<div class="hint">Have a card or Mac LocalBit hasn't measured? <a href="${origin}/test">Measure it in 3 minutes</a> - ${esc(communityLine())}</div>
-<div class="hint">Or ask by address - any model, any card: <code>${origin}/check?model=&lt;model&gt;&amp;hardware=&lt;card&gt;&amp;context=&lt;tokens&gt;</code> (JSON: <code>/api/check</code> with the same words; names: <a href="${origin}/api/hardware">/api/hardware</a>, <a href="${origin}/api/models">/api/models</a>).</div></div>
+<div class="hint">By URL: <code>${origin}/check?model=&lt;model&gt;&amp;hardware=&lt;card&gt;&amp;context=&lt;tokens&gt;</code> · JSON: <code>/api/check</code> · names: <a href="${origin}/api/hardware">/api/hardware</a>, <a href="${origin}/api/models">/api/models</a></div></div>
 <div class="grid3" style="margin-top:22px">
-<div class="card"><h3>Live node</h3><p>An RTX 3090 in the field, testing models every night. ${nMeas} logged so far. <a href="${origin}/measured">Latest tested</a>.</p></div>
-<div class="card"><h3>Labeled readings</h3><p>Every answer says estimated or measured, and when it was last read.</p></div>
-<div class="card"><h3>Open data</h3><p>Readings and tables under CC BY 4.0. Scripts on <a href="${siteFile.repo}">GitHub</a>.</p></div></div>
+<div class="card"><h3>Live node</h3><p>RTX 3090, tested nightly. ${nMeas} models logged. <a href="${origin}/measured">Latest tested</a></p></div>
+<div class="card"><h3>Your hardware</h3><p>Untested card or Mac? <a href="${origin}/test">Measure it</a> in 3 minutes.${k.results ? ` ${k.results} community results so far.` : ""}</p></div>
+<div class="card"><h3>Open data</h3><p>Every reading marked measured or estimated, with its date. CC BY 4.0, scripts on <a href="${siteFile.repo}">GitHub</a>.</p></div></div>
 <h2 id="agents">For AI agents</h2>
-<div class="card"><p style="margin-top:0"><b>MCP server</b> (Streamable HTTP, no key): <code>${origin}/mcp</code><br><span class="small">Listed in the MCP Registry as <code>io.github.adamson-gh/localbit</code></span></p>
+<div class="card"><p style="margin-top:0"><b>MCP</b> (Streamable HTTP, no key): <code>${origin}/mcp</code> · registry: <code>io.github.adamson-gh/localbit</code></p>
 <p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare</code> · <code>get_details</code> · <code>node_log</code> · <code>list_known</code> · <code>get_test_kit</code> · <code>submit_result</code> · <code>report_issue</code></p>
-<p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a></p></div>
-<h2>What the node logs</h2><p class="small">The tool called, the model and hardware asked about, and the calling app's self-reported name. No IP addresses, accounts or personal data. <a href="${origin}/about">Who runs it, privacy, data license.</a></p>`, origin,
-  "Will an AI model run on your GPU or Mac? Memory needed and tokens per second - estimated, and measured on a real RTX 3090.");
+<p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a> · <a href="${origin}/docs">docs</a></p></div>
+<h2>Logged</h2><p class="small">Tool, model, hardware, verdict and client name. No IP addresses, accounts or personal data. <a href="${origin}/about">About, privacy, license</a></p>`, origin,
+  "Will this AI model run on my GPU or Mac? Memory needed and tokens per second for local models - estimated from specs, measured on a real RTX 3090 and by the community.");
 }
 function resultCard(out) {
   const d = out.data, mg = d.memory_gb || {}, meas = d.measured;
@@ -526,29 +526,36 @@ ${(d.suggestions || []).length ? `<ul class="tips">${d.suggestions.map(t => `<li
 }
 function checkPage(sp, origin) {
   const out = checkFit(sp);
-  if (out.error) return page("LocalBit - not found", `<h1>Hmm, not sure about that one</h1><div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}<p class="small">${esc(out.text)}</p></div>`, origin);
+  if (out.error) return page("LocalBit - not found", `<h1>Not recognized</h1><div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}<p class="small">${esc(out.text)}</p></div>`, origin);
   const d = out.data;
-  return page(`Can ${d.model} run on ${d.hardware}? - LocalBit`, `<h1>Can ${esc(d.model)} run on ${esc(d.hardware)}?</h1>${resultCard(out)}
+  return page(`Can ${d.model} run on ${d.hardware}? - LocalBit`, `<h1>${esc(d.model)} on ${esc(d.hardware)}</h1>${resultCard(out)}
 <div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}</div>`, origin);
 }
 const ICON_PNG_B64 = "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";   // 180x180 logo for phones' home screens
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#2457d6"/><path d="M150 120 V372 H362" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><g fill="#fff"><rect x="226" y="282" width="34" height="58" rx="10" opacity=".55"/><rect x="276" y="236" width="34" height="104" rx="10" opacity=".75"/><rect x="326" y="180" width="34" height="160" rx="10"/></g></svg>`;
 // (Nov 25: Glama - "No documentation or privacy policy URL ... ChatGPT's requires a privacy policy") a privacy page and a docs page
+// (Nov 26, owner: "less intimidating" / "clean up unnecessary text") one line for the visitor's own system, a copy button, the rest folded away
 function testPage(origin) {
-  return page("Measure your own machine - LocalBit", `<h1>Measure your own machine</h1><p class="lede">Three to five minutes, your hardware, the same method as the node. Share the numbers only if you want to.</p>
-<p class="small"><b>${esc(communityLine())}</b></p>
-<div class="card"><p style="margin-top:0"><b>1.</b> You need <a href="https://ollama.com">Ollama</a> with a model pulled, and Python 3.8+ (most Macs and Linux machines have it).</p>
-<p><b>2.</b> Open a terminal and paste the line for your system. It downloads one file and runs it - nothing is installed.</p>
-<p><b>Mac or Linux</b> (Terminal):<br><code>curl -sO ${origin}/test.py &amp;&amp; python3 test.py</code></p>
-<p><b>Windows</b> (PowerShell):<br><code>irm ${origin}/test.py -OutFile test.py; py test.py</code><br><span class="small">If <code>py</code> isn't found, try <code>python test.py</code>; if that opens the Microsoft Store, Python isn't installed yet - get it from <a href="https://www.python.org/downloads/">python.org</a>.</span></p>
-<p><b>3.</b> Pick one of your models from the list. Add <code>--dry-run</code> to measure without sending anything.</p>
-<p style="margin-bottom:0"><b>4.</b> It prints exactly what would be shared - the model, your card or Mac name and memory, the speeds, Ollama version and OS - and asks yes or no. Say yes and you get a link to your result straight away.</p></div>
-<p class="small">Prefer to look first? <a href="${origin}/test.py">Download the script</a> or <a href="${siteFile.repo}/blob/main/bench/localbit_test.py">read the source</a> (one file, about 200 lines).</p>
-<h2>What gets shared, if you say yes</h2><p>Only those numbers. Never names, usernames, file paths, IP addresses or serial numbers. Results are checked against LocalBit's estimate: plausible ones appear in answers as <b>community</b> results, labelled unverified; unusual ones are held for review. They become open data (CC BY 4.0).</p>
-<h2>For agents</h2><p><code>get_test_kit</code> returns these steps; <code>submit_result</code> sends a result after the user agrees. Recipe: <a href="${origin}/recipe.json">/recipe.json</a>.</p>`, origin);
+  const mac = `curl -sO ${origin}/t.py && python3 t.py`, win = `irm ${origin}/t.py -OutFile t.py; py t.py`;
+  const line = (id, label, how, cmd) => `<div class="os" id="${id}"><p style="margin:0 0 6px"><b>${label}</b> <span class="small">${how}</span></p>
+<div class="cmd"><code>${esc(cmd)}</code><button type="button" class="copy" data-cmd="${esc(cmd)}">Copy</button></div></div>`;
+  return page("Measure your hardware - LocalBit", `<h1>Measure your hardware</h1><p class="lede">3-5 minutes, same recipe as the node. Nothing is sent unless you say yes.</p>
+<div class="card"><p style="margin-top:0" class="small">Needs <a href="https://ollama.com">Ollama</a> with a model pulled, and Python 3.8+.</p>
+${line("os-mac", "Mac / Linux", "- open Terminal (⌘ Space, type Terminal), paste, press Enter", mac)}
+${line("os-win", "Windows", "- open PowerShell (Start, type PowerShell), paste, press Enter", win)}
+<p class="small" id="os-other" style="margin-bottom:0"><a href="#" id="show-all">Other system</a> · <code>py</code> not found? use <code>python t.py</code> · no Python? <a href="https://www.python.org/downloads/">python.org</a></p></div>
+<h2>Or ask your AI assistant</h2><p>Using Claude Code, Cursor or another coding agent? Ask it to <b>run the LocalBit test</b>. It gets the steps from LocalBit and asks you before sharing.</p>
+<h2>What it does</h2><ul class="small"><li>Lists your Ollama models; you pick one. Detects your card or Mac.</li>
+<li>Measures speed at 4K and 16K context, and reading speed on a long prompt.</li>
+<li>Shows exactly what it would send - model, card or Mac name and memory, speeds, Ollama version, OS - and asks <b>y/N</b>. Never names, paths, IPs or serial numbers.</li>
+<li>Yes: you get a link to your result. Plausible results join LocalBit's answers as <b>community</b> (unverified); unusual ones are held for review. Open data, CC BY 4.0.</li></ul>
+<p class="small">${esc(communityLine())} · <a href="${origin}/t.py">Download the script</a> · <a href="${siteFile.repo}/blob/main/bench/localbit_test.py">source</a> · <code>--dry-run</code> measures without sending · agents: <code>get_test_kit</code>, <code>submit_result</code>, <a href="${origin}/recipe.json">recipe</a></p>
+<script>(function(){var w=/Win/.test(navigator.platform||navigator.userAgent),m=document.getElementById(w?"os-mac":"os-win");if(m)m.style.display="none";
+var a=document.getElementById("show-all");if(a)a.onclick=function(e){e.preventDefault();m.style.display="";a.style.display="none"};
+document.querySelectorAll("button.copy").forEach(function(b){b.onclick=function(){var c=b.getAttribute("data-cmd");(navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(function(){b.textContent="Copied"},function(){var r=document.createRange();r.selectNodeContents(b.previousElementSibling);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent="Press Ctrl+C"});setTimeout(function(){b.textContent="Copy"},2500)}})})();</script>`, origin);
 }
 function privacyPage(origin) {
-  return page("Privacy policy - LocalBit", `<h1>Privacy policy</h1><p class="lede">Short version: LocalBit keeps what was asked, never who asked.</p>
+  return page("Privacy policy - LocalBit", `<h1>Privacy policy</h1><p class="lede">LocalBit keeps what was asked, never who asked.</p>
 <h2>What is recorded</h2><ul><li>For each request: the time, which page or tool, the model and hardware named, the answer's verdict, and the calling app's self-reported name (its user agent or MCP client name).</li>
 <li>Reports that an answer was wrong: what was reported, with emails, phone numbers and links removed from the note.</li>
 <li>Addresses that don't exist when someone asks for one: the path only.</li>
@@ -577,7 +584,7 @@ function docsPage(origin) {
 }
 function about(origin) {
   return page("About LocalBit - who runs it, privacy, data license", `<h1>About LocalBit</h1>
-<p class="lede">One question, answered well: will this AI model run on this hardware?</p>
+<p class="lede">Fit, memory and speed for local AI models on graphics cards and Macs.</p>
 <h2>Operator</h2><p>LocalBit is an independent project by <a href="${OWNER.url}">${OWNER.name}</a> on GitHub. It isn't connected with NVIDIA, AMD, Intel, Apple, Ollama or any model maker.</p>
 <h2>How far to trust a reading</h2><p>Most answers are <b>estimates</b> from each model's design and each card's published specs. Speeds marked <b>measured</b> come from LocalBit's own RTX 3090 test machine (Windows, Ollama), re-run regularly. Laptop versions of cards are slower than desktop ones, and two-card or CPU-only setups aren't modeled yet. Check before you buy hardware on the strength of an estimate. Every answer says how current its data is.</p>
 <h2>Something wrong?</h2><p>Agents can call the <code>report_issue</code> tool; people can use the form on any result page, or <code>POST ${origin}/api/report</code> with JSON. Real results (tokens/s, memory used, runtime) help most.</p>
@@ -701,7 +708,7 @@ async function pairPage(mid, gid, origin, env) {
   const out = checkFit({ model: m.id, hardware: g.id });
   const others = DATA.gpus.filter(x => x.id !== g.id && Math.abs(x.vram_gb - g.vram_gb) <= 8).slice(0, 8)
     .map(x => `<a href="${origin}/run/${m.id}/on/${x.id}">${esc(x.name.replace(/^NVIDIA GeForce |^AMD Radeon /, ""))}</a>`).join("");
-  return page(`Can ${m.name} run on ${g.name}? - LocalBit`, `<h1>Can ${esc(m.name)} run on ${esc(g.name)}?</h1>${resultCard(out)}
+  return page(`Can ${m.name} run on ${g.name}? - LocalBit`, `<h1>${esc(m.name)} on ${esc(g.name)}</h1>${resultCard(out)}
 ${recentHtml}
 <h2>Other cards</h2><div class="chips">${others}</div>
 <h2>Different settings?</h2><p class="small">Ask with your own context length: <code>${origin}/api/check?model=${encodeURIComponent(m.id)}&amp;hardware=${encodeURIComponent(g.id)}&amp;context=32768</code></p>
@@ -712,7 +719,7 @@ function llmsTxt(origin) {
   return `# LocalBit\n\n> Will an AI model run on this hardware? Memory needed (weights + context cache) and estimated or measured generation speed for local models on graphics cards and Apple computers.\n\n` +
     `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), compare(a_model, a_hardware, b_model?, b_hardware?, context?), node_log(limit?), get_details(name, kind?), get_test_kit(), submit_result(model, hardware, results, ...), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
     `- JSON API: ${origin}/api/check?model=...&hardware=...&context=...&quant=... ; ${origin}/api/suggest?hardware=... ; ${origin}/api/models ; ${origin}/api/hardware ; ${origin}/api/measured ; ${origin}/api/compare?a_model=...&a_hardware=...&b_model=... ; ${origin}/api/log ; ${origin}/log.rss ; POST ${origin}/api/report (JSON)\n\n` +
-    `## Contribute\n- No measurement for your hardware? ${origin}/test - a 3-minute script (${origin}/test.py, recipe ${origin}/recipe.json) measures a model in your own Ollama, shows what it would send and asks first. Agents: get_test_kit, then submit_result after the user agrees. Community results are labeled "community" (unverified).\n\n` +
+    `## Contribute\n- No measurement for your hardware? ${origin}/test - a 3-minute script (${origin}/t.py, recipe ${origin}/recipe.json) measures a model in your own Ollama, shows what it would send and asks first. Agents: get_test_kit, then submit_result after the user agrees. Community results are labeled "community" (unverified).\n\n` +
     `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
 }
 function sitemap(origin) {
@@ -821,7 +828,7 @@ async function handle(request, env, ctx) {
     if (path === "/apple-touch-icon.png" || path === "/apple-touch-icon-precomposed.png" || path === "/logo.png")
       return new Response(Uint8Array.from(atob(ICON_PNG_B64), c => c.charCodeAt(0)), { headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" } });
     if (path === "/recipe.json") { logCall(env, ctx, { kind: "recipe", ua }); return json(recipeFile); }
-    if (path === "/test.py") { logCall(env, ctx, { kind: "test_script", ua }); return new Response(TEST_SCRIPT, { headers: { "content-type": "text/x-python; charset=utf-8", "content-disposition": 'attachment; filename="localbit_test.py"' } }); }
+    if (path === "/t.py" || path === "/test.py") { logCall(env, ctx, { kind: "test_script", ua }); return new Response(TEST_SCRIPT, { headers: { "content-type": "text/x-python; charset=utf-8", "content-disposition": 'attachment; filename="localbit_test.py"' } }); }
     if (path === "/test") { logCall(env, ctx, { kind: "test_page", ua }); return testPage(origin); }
     if (path === "/api/details") { const o = getDetails(sp); logCall(env, ctx, { kind: "api", ua, tool: "get_details", model_q: sp.name, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
     if (path === "/logo.svg") return new Response(LOGO_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });

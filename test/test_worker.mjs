@@ -83,7 +83,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const nf = await (await call("/check?model=llama%203.3%2070b&hardware=rtx%203090")).text();
   check("...a model that doesn't fit says so and how far over", /v-does_not_fit/.test(nf) && /GB over/.test(nf));
   const un = await call("/check?model=zzz-made-up&hardware=rtx%204060");
-  check("...an unknown model gets a friendly page, not an error", un.status === 200 && /not sure about that one/.test(await un.text())); }
+  check("...an unknown model gets a friendly page, not an error", un.status === 200 && /Not recognized/.test(await un.text())); }
 { const st = await (await call("/stats", { headers: { authorization: "Bearer made-up-key" } })).json();
   const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
   check("stats compare the estimate with every measurement (drift %)", Array.isArray(st.estimate_drift) && st.estimate_drift.length === mj.measured.length && st.estimate_drift.every(d => typeof d.off_pct === "number"), st.estimate_drift); }
@@ -165,7 +165,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const [s4, a4] = await post({ model: "x" });
   check("an incomplete submission is rejected with what's needed", s4 === 400 && /needs model, hardware/.test(a4.answer), a4); }
 { const [sk, jk] = await rpc({ jsonrpc: "2.0", id: 120, method: "tools/call", params: { name: "get_test_kit", arguments: {} } });
-  check("get_test_kit: the script, the recipe and the consent promise", /\/test\.py/.test(jk.result.content[0].text) && /asks yes\/no/.test(jk.result.content[0].text) && jk.result.structuredContent.recipe_url.endsWith("/recipe.json"));
+  check("get_test_kit: the script, the recipe, the consent promise, and agents use --dry-run then submit_result", /--dry-run \(sends nothing\), show the user/.test(jk.result.content[0].text) && /\/t\.py/.test(jk.result.content[0].text) && /asks yes\/no/.test(jk.result.content[0].text) && jk.result.structuredContent.recipe_url.endsWith("/recipe.json"));
   const tp = await call("/test.py"), rc = await (await call("/recipe.json")).json();
   check("/test.py serves the script; /recipe.json the recipe", tp.status === 200 && /Share these numbers with LocalBit\?/.test(await tp.text()) && rc.recipe_version === 1 && rc.tests.some(x => x.name === "gen"));
   const [sd, jd] = await rpc({ jsonrpc: "2.0", id: 121, method: "tools/call", params: { name: "get_details", arguments: { name: "qwen3.8 27b" } } });
@@ -177,7 +177,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
 { const r = await (await call("/api/check?model=zephyrion%2040b&hardware=rtx%204090")).json();
   check("an unknown model says so first, in plain words", /^LocalBit doesn't know the model "zephyrion 40b" - this is a rough estimate for a typical 40B model/.test(r.answer), r.answer.slice(0, 200));
   const h = await (await call("/")).text();
-  check("the home page shows how to ask by address (for agents that can only read pages)", /Or ask by address - any model, any card: <code>[^<]*\/check\?model=&lt;model&gt;&amp;hardware=&lt;card&gt;/.test(h)); }
+  check("the home page shows how to ask by URL (for agents that can only read pages)", /By URL: <code>[^<]*\/check\?model=&lt;model&gt;&amp;hardware=&lt;card&gt;/.test(h)); }
 // contributor experience (Nov 26)
 { const rows = [{ ts: "2026-11-26T14:05:00Z", context: 4096, gen_tps: 40.1, status: "community" }, { ts: "2026-11-26T14:06:00Z", context: 16384, gen_tps: 90, status: "flagged" }];
   const envR = { DB: { prepare: sql => ({ bind: () => ({ all: async () => ({ results: /FROM submissions WHERE model_id/.test(sql) ? rows : [] }), run: async () => {} }) }) } };
@@ -187,7 +187,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const a = await r.json();
   check("a submission answers with the link to its result", a.url && a.url.endsWith("/run/llama-3.1-8b/on/rtx-4060") && a.answer.includes("listed now at " + a.url), a);
   const tp = await (await call("/test")).text();
-  check("the test page: copy-paste lines for Mac/Linux (python3) and Windows, and the community count", /curl -sO [^<]*\/test\.py &amp;&amp; python3 test\.py/.test(tp) && /irm [^<]*\/test\.py -OutFile test\.py; py test\.py/.test(tp) && /No community results yet - yours would be the first/.test(tp));
+  check("the test page: one copyable line per system (python3 on Mac), the other folded by script, the community count", /data-cmd="curl -sO [^"]*\/t\.py &amp;&amp; python3 t\.py"/.test(tp) && /data-cmd="irm [^"]*\/t\.py -OutFile t\.py; py t\.py"/.test(tp) && /Or ask your AI assistant/.test(tp) && /No community results yet/.test(tp) && (tp.match(/<h1>Local AI models|<h1>Measure your hardware<\/h1>/) || []).length === 1);
   const hp = await (await call("/")).text();
-  check("the home page invites a test where LocalBit hasn't measured", /Measure it in 3 minutes<\/a>/.test(hp)); }
+  check("the home page: new title, and an invitation to measure untested hardware", /<h1>Local AI models, checked against your hardware<\/h1>/.test(hp) && /<a href="[^"]*\/test">Measure it<\/a> in 3 minutes/.test(hp) && !/Will this AI model run/.test(hp.replace(/<meta[^>]*>/g, ""))); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

@@ -8,6 +8,8 @@
 - The home page shows how to ask by address, for agents that can only read pages.
 - Phone layout: the menu wraps and long addresses break instead of pushing the page off screen; a phone-width browser test checks every page.
 - Contributor experience: copy-paste commands for Mac/Linux (python3) and Windows; the result's page lists it immediately (link printed by the script); community count on the home and test pages; on Windows, AMD/Intel cards are detected and confirmed against LocalBit's card list.
+- New title, "Local AI models, checked against your hardware"; shorter copy across pages; result pages titled "<model> on <card>" (the question form stays in page titles for search).
+- Test page: one copyable line for the visitor's own system, short script address /t.py, "ask your AI assistant" option (agents run --dry-run, show the user, then submit_result).
 - Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
 
 ## 0.4.0 - 2026-11-26
