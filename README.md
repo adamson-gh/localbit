@@ -1,5 +1,7 @@
 # LocalBit
 
+[![LocalBit MCP connector – tool definition quality and endpoint health on Glama](https://glama.ai/mcp/connectors/io.github.adamson-gh/localbit/badges/score.svg)](https://glama.ai/mcp/connectors/io.github.adamson-gh/localbit)
+
 **Will this AI model run on my hardware?** LocalBit answers with the memory a local model needs (weights + context cache) and how fast it
 should generate, for graphics cards and Apple computers - estimated from the model's design and the card's specs, and **measured** where
 real results exist. Every answer says which.
