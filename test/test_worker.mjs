@@ -149,4 +149,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("privacy policy, docs and logo pages are served", pv.status === 200 && /Privacy policy/.test(await pv.text()) && dc.status === 200 && /JSON API/.test(await dc.text()) && lg.headers.get("content-type") === "image/svg+xml");
   const [s9, j9] = await rpc({ jsonrpc: "2.0", id: 99, method: "tools/list" });
   check("every tool description says when to use it instead of its siblings", j9.result.tools.every(x => /Use this (when|after)|Call this first/.test(x.description)), j9.result.tools.map(x => x.name)); }
+{ const fi = await call("/favicon.ico"), ap = await call("/apple-touch-icon.png");
+  const bytes = new Uint8Array(await ap.arrayBuffer());
+  check("browser icons are served (favicon, phone home-screen icon as a real PNG)", fi.status === 200 && ap.status === 200 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);
