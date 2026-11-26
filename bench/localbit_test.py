@@ -206,6 +206,11 @@ def run():
     except Exception:
         ver = None
     free_card(model)
+    try:   # (Nov 26 diagnostic: the model was already loaded by another program on the processor only, and a test at the same context
+        # reused that copy - 25 instead of 150 tokens/s) start from a fresh load, as the node does; it reloads on its own when next used
+        http(OLLAMA + "/api/generate", {"model": model, "keep_alive": 0}, timeout=60)
+    except Exception:
+        pass
     print("\nTesting %s on %s - about 3 minutes. Close other heavy programs for a fair result.\n" % (model, hw["hardware"]))
     G = next(t for t in R["tests"] if t["name"] == "gen")
     P = next(t for t in R["tests"] if t["name"] == "prompt_4k")

@@ -18,7 +18,7 @@ class O(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["content-length"])) or b"{}")
         if self.path == "/api/show": return self._j({"details": {"quantization_level": "Q4_K_M"}, "capabilities": ["embedding"] if "embed" in body.get("model", "") else ["completion"]})
-        if self.path == "/api/generate" and body.get("keep_alive") == 0: unloaded.append(body["model"]); STATE["other_loaded"] = False; return self._j({"done": True})
+        if self.path == "/api/generate" and body.get("keep_alive") == 0: unloaded.append(body["model"]); STATE["other_loaded"] = STATE["other_loaded"] and body["model"] != "other:3b"; return self._j({"done": True})
         if self.path == "/api/generate" and body.get("model") == "broken:1b":
             self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"model runner crashed"}'); return
         if self.path == "/api/generate": return self._j({"eval_count": 256, "eval_duration": int(4e9), "prompt_eval_count": 4000, "prompt_eval_duration": int(2e9)})
@@ -50,12 +50,13 @@ check("a model Ollama can't run: a plain sentence, no traceback", r.returncode =
 STATE["other_loaded"] = True
 
 r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
-check("another loaded model is named; without a terminal nothing is unloaded unasked", "Also loaded in Ollama, sharing the card's memory: other:3b (3.0 GB)" in r.stdout and "Not unloading" in r.stdout and not unloaded, r.stdout[:400])
+check("another loaded model is named; without a terminal nothing is unloaded unasked", "Also loaded in Ollama, sharing the card's memory: other:3b (3.0 GB)" in r.stdout and "Not unloading" in r.stdout and "other:3b" not in unloaded, r.stdout[:400])
 import importlib.util as _iu
 _sp = _iu.spec_from_file_location("lbt2", script); lbt2 = _iu.module_from_spec(_sp); _sp.loader.exec_module(lbt2)
 lbt2.OLLAMA = url
-lbt2.free_card("made-up:7b", ask=lambda q: "")
-check("asked and answered yes (Enter): the other model is unloaded", unloaded == ["other:3b"], unloaded)
+STATE["other_loaded"] = True; _before = len(unloaded); lbt2.free_card("made-up:7b", ask=lambda q: "")
+check("asked and answered yes (Enter): the other model is unloaded", unloaded[_before:] == ["other:3b"], unloaded)
+check("every run starts from a fresh load of the tested model (an existing copy may sit on the processor)", "made-up:7b" in unloaded, unloaded)
 srv.shutdown()
 # the community publisher: only plausible rows, middle value, count
 tmp = Path(tempfile.mkdtemp())
