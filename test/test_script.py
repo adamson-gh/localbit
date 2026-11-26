@@ -51,7 +51,7 @@ check("results: both recipe contexts, prompt speed at 16K, on-card flag", [x["co
 r = subprocess.run([sys.executable, script, "--dry-run"], env=env, input="1\n", capture_output=True, text=True, timeout=120)
 check("the model list leaves out embedding models (they can't be measured)", "nomic-embed-text" not in r.stdout and "made-up:7b" in r.stdout and "broken:1b" in r.stdout, r.stdout[:300])
 r = subprocess.run([sys.executable, script, "--model", "broken:1b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
-check("a model Ollama can't run: a plain sentence, no traceback", r.returncode == 1 and "couldn't run this model (error 500)" in r.stdout and "Traceback" not in r.stdout + r.stderr, (r.stdout[-300:], r.stderr[-300:]))
+check("a model Ollama can't run: a plain sentence, no traceback", r.returncode == 1 and "couldn't run this model (error 500)" in r.stdout and "Stopped - nothing was sent." in r.stdout and "Test another model" in r.stdout and "Traceback" not in r.stdout + r.stderr, (r.stdout[-300:], r.stderr[-300:]))
 STATE["other_loaded"] = True
 
 r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)

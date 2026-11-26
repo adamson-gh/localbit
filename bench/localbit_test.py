@@ -171,29 +171,41 @@ def free_card(model, ask=input):
     if not others:
         return
     names = ", ".join("%s (%.1f GB)" % (m["name"], m.get("size", 0) / 2**30) for m in others)
-    print("Also loaded in Ollama, sharing the card's memory: %s." % names)
+    print("    Also loaded in Ollama, sharing the card's memory: %s." % names)
     if not sys.stdin.isatty() and ask is input:
-        print("(Not unloading them - numbers may come out low.)\n"); return
-    if ask("Unload them for a fair test? They load again the next time you use them. [Y/n] ").strip().lower() in ("", "y", "yes"):
+        print("    (Not unloading them - numbers may come out low.)"); return
+    if ask("    Unload them for a fair test? They load again the next time you use them. [Y/n] ").strip().lower() in ("", "y", "yes"):
         for m in others:
             unload(m["name"])
-        print("Unloaded.\n")
+        print("    Unloaded %s" % ("✓" if FANCY else "ok"))
+
+
+def stopped(what, why):
+    """(Nov 26, owner's phi4 run ended flush-left with no way on) a failure ends like a finished run: what happened, then next steps."""
+    print("\n    " + yellow(what))
+    print("\n " + dim(LINE * 72))
+    print(" " + bold("Stopped - nothing was sent."))
+    print(" " + why)
+    print("\n " + bold("Next"))
+    print("    %s %-22s %s" % (DOT, "Test another model", "run the same line again and pick a different one"))
+    print("    %s %-22s %s" % (DOT, "Still stuck?", "%s/suggest - tell LocalBit what happened" % SITE))
+    print()
 
 
 def main():
     try:
         return run()
     except urllib.error.HTTPError as e:   # (Nov 26) a model Ollama can't run: say so plainly, no traceback
-        print("\nOllama couldn't run this model (error %d). It may not be a text model, or it crashed - try another one. Nothing was sent." % e.code)
+        stopped("Ollama couldn't run this model (error %d)." % e.code, "It may not be a text model, or Ollama's runner crashed on it - it happens with some models on some Ollama versions.")
         return 1
     except urllib.error.URLError:
-        print("\nLost contact with Ollama at %s - is it still running? Nothing was sent." % OLLAMA)
+        stopped("Lost contact with Ollama at %s." % OLLAMA, "Is Ollama still running? Start it and try again.")
         return 1
     except RuntimeError as e:
-        print("\nOllama reported a problem with this model: %s. Try another one. Nothing was sent." % str(e)[:200])
+        stopped("Ollama reported a problem with this model: %s" % str(e)[:160], "Try a different model.")
         return 1
     except KeyboardInterrupt:
-        print("\nStopped. Nothing was sent.")
+        stopped("You stopped the test.", "No problem - run it again any time.")
         return 1
 
 
