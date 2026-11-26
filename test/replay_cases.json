@@ -122,6 +122,514 @@
     "verdict": "fits"
    },
    "added": "2026-11-25 (seeded from the day's test questions)"
+  },
+  {
+   "model": "llama 3.1 8b",
+   "hardware": "rtx 3090",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.1-8b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-3090",
+   "context": 16384,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4 e4b",
+   "hardware": "rtx 3090",
+   "context": 16384,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "llama 3.1 8b",
+   "hardware": "rtx 4060",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.1-8b",
+    "gpu_id": "rtx-4060",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "llama 3.3 70b",
+   "hardware": "rtx 3090",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "rtx-3090",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "llama 3.3 70b",
+   "hardware": "rtx 4070",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "rtx-4070",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "llama 3.3",
+   "hardware": "rtx 3090",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "rtx-3090",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "llama 3.3 11B",
+   "hardware": "rtx 3090",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "generic-11b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "llama 3.3 70b",
+   "hardware": "2x rtx 3090",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "2x-rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "Qwen 4",
+   "hardware": "Rtx 4070",
+   "expect": {
+    "model_id": null,
+    "gpu_id": "rtx-4070",
+    "verdict": "unknown"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "Qwen 2.5",
+   "hardware": "Rtx 4070",
+   "expect": {
+    "model_id": null,
+    "gpu_id": "rtx-4070",
+    "verdict": "unknown"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "Qwen 2.5 7B",
+   "hardware": "Rtx 4070",
+   "expect": {
+    "model_id": "qwen2.5-7b",
+    "gpu_id": "rtx-4070",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3 30b",
+   "hardware": "rtx 4090",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3-30b-a3b",
+    "gpu_id": "rtx-4090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-3090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-3090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4080-super",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4080-super",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-5060-ti-16",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-5060-ti-16",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-5080",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-5080",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4070-ti-super",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4070-ti-super",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-5070-ti",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-5070-ti",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4080",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4080",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-5090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-5090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-5070-ti",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-5070-ti",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4070-ti-super",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4070-ti-super",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-5080",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-5080",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-5060-ti-16",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-5060-ti-16",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4080",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4080",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-5090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-5090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4080-super",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4080-super",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-5070",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-5070",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4070-super",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4070-super",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4060-ti-16",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4060-ti-16",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rx-7900-xtx",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rx-7900-xtx",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-3090-ti",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-3090-ti",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-5070",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-5070",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4070-super",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4070-super",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-3090-ti",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-3090-ti",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rx-7900-xtx",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rx-7900-xtx",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4060-ti-16",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4060-ti-16",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "gemma4-e4b",
+   "hardware": "rtx-4070",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma4-e4b",
+    "gpu_id": "rtx-4070",
+    "verdict": "fits"
+   },
+   "added": "2026-11-26"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx-4070",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-4070",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-26"
   }
  ]
 }

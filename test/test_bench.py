@@ -91,5 +91,10 @@ part = [dict(date="2026-11-25T03:00:00", gpu="rtx-3090", model="made-up:7b", ctx
 pp = subprocess.run([sys.executable, str(bench / "publish.py")], env=dict(os.environ, LOCALBIT_RUNS=str(tmp / "part.jsonl"), LOCALBIT_MEASURED=str(tmp / "part_out.json")), capture_output=True, text=True, timeout=60)
 po = json.loads((tmp / "part_out.json").read_text())["measured"]
 check("a run partly off the graphics card is left out of what's published", po and po[0]["runs"] == 2, (po, pp.stderr[-200:]))
+(tmp / "fail_runs.jsonl").write_text("", encoding="utf-8")
+os.environ["LOCALBIT_RUNS"] = str(tmp / "fail_runs.jsonl")
+spec3 = _u.spec_from_file_location("rb3", bench / "run_3090.py"); rb3 = _u.module_from_spec(spec3); spec3.loader.exec_module(rb3)
+rb3.note_failure("made-up:7b", "made-up crash"); check("one failure: tried again next night", rb3.recent_failures("made-up:7b") == 1)
+rb3.note_failure("made-up:7b", "made-up crash"); check("two failures in a week: skipped", rb3.recent_failures("made-up:7b") == 2)
 srv.shutdown()
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)

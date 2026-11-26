@@ -200,6 +200,26 @@ def done_recently(model, days=30, test="gen", ver=None):
     return False
 
 
+def note_failure(model, err):
+    """(Nov 26: phi4 crashed Ollama's runner - 0xc0000409) a failed model is noted; after two failures in a week it's skipped."""
+    with open(RUNS, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"date": datetime.now().isoformat(timespec="seconds"), "gpu": "rtx-3090", "model": model, "test": "error", "error": str(err)[:200]}) + "\n")
+
+
+def recent_failures(model, days=7):
+    if not RUNS.exists():
+        return 0
+    n = 0
+    for line in RUNS.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if r.get("model") == model and r.get("test") == "error" and time.time() - datetime.fromisoformat(r["date"]).timestamp() < days * 86400:
+            n += 1
+    return n
+
+
 def quiz(model, ver):
     """(Nov 25, owner: "is quality not something we can measure? ... Yes, swap") the 60-question check (bench/quiz.py), 4K context,
     temperature 0, thinking off. One row: right per group, the ids missed. Returns (row or None, stopped)."""
@@ -251,6 +271,7 @@ def measure(model, ver):
                 r = gen(model, prompt, ctx, predict)
                 if r.get("error"):
                     log(model, ctx, test, "failed:", r["error"])
+                    note_failure(model, r["error"])
                     return rows, False
                 row = {"date": datetime.now().isoformat(timespec="seconds"), "gpu": "rtx-3090", "model": model, "ctx": ctx, "test": test,
                        "run": run + 1, "kv_cache": os.environ.get("OLLAMA_KV_CACHE_TYPE") or "q8_0 (system)", **meta, **ver, **r}
@@ -270,7 +291,10 @@ def main():
     maxm = int(sys.argv[sys.argv.index("--max-models") + 1]) if "--max-models" in sys.argv else 3
     approved = [l.strip() for l in (HERE / "approved.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
     ver = versions()
-    todo = [m for m in approved if not (done_recently(m, ver=ver) and done_recently(m, test="quiz"))][:maxm]
+    todo = [m for m in approved if not (done_recently(m, ver=ver) and done_recently(m, test="quiz"))]
+    for m in [m for m in todo if recent_failures(m) >= 2]:
+        log(m, "skipped - failed twice this week (see the error rows)")
+    todo = [m for m in todo if recent_failures(m) < 2][:maxm]
     if not todo:
         log("nothing to measure"); return
     if should_stop(NOW):

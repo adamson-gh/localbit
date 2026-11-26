@@ -48,7 +48,7 @@ def main():
         st["bench_exit"] = r.returncode
         if r.returncode:
             st["problems"].append("the measuring run crashed")
-    tonight = LOG.read_text(encoding="utf-8", errors="ignore")[log_start:] if LOG.exists() else ""
+    tonight = LOG.read_bytes()[log_start:].decode("utf-8", errors="ignore") if LOG.exists() else ""   # (Nov 26) slice bytes - the log has multi-byte characters
     st["measured_lines"] = len(re.findall(r" gen \d ", tonight))
     st["quiz"] = re.findall(r"(\S+) quiz (\d+) / (\d+)", tonight)
     st["stopped_for_assistant"] = "in use - stopping" in tonight
