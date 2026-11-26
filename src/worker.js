@@ -6,7 +6,7 @@ import modelsFile from "../data/models.json" with { type: "json" };
 import gpusFile from "../data/gpus.json" with { type: "json" };
 import measuredFile from "../data/measured.json" with { type: "json" };
 import siteFile from "../config/site.json" with { type: "json" };
-import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest } from "./estimate.js";
+import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest, familyOf } from "./estimate.js";
 
 const VERSION = "0.3.0";
 const SITE = siteFile.site;
@@ -105,6 +105,9 @@ function checkFit(args) {
   }
   const m = findModel(args.model, DATA.models), g = findGpu(args.hardware, DATA.gpus);
   if (!m || !g) {
+    const fam = !m ? familyOf(args.model, DATA.models) : [];
+    if (fam.length > 1 && g) return { error: true, text: `${args.model} comes in ${fam.length} sizes LocalBit knows: ${fam.map(x => x.name).join(", ")}. Ask again with the size, e.g. "${fam[0].name}".`,
+      data: { model_found: false, hardware_found: true, sizes: fam.map(x => ({ id: x.id, name: x.name, params_b: x.params_b })) }, log: { gpu_id: g.id, verdict: "needs_size" } };
     const cm = !m ? closest(args.model, DATA.models) : [], cg = !g ? closest(args.hardware, DATA.gpus) : [];
     return { error: true, text: (!m ? `LocalBit doesn't know the model "${args.model}" yet.${cm.length ? " Closest known: " + cm.join(", ") + "." : ""} Add its size (like "17B") for an estimate, or call list_known for exact names. ` : "") +
       (!g ? `LocalBit doesn't know the hardware "${args.hardware}" yet.${cg.length ? " Closest known: " + cg.join(", ") + "." : ""} Give its memory (like "12 GB") for an estimate, or call list_known.` : ""),
@@ -125,6 +128,7 @@ function checkFit(args) {
   if (g.cards > 1) lines.push(`Note: ${g.cards} cards of ${g.per_card_gb} GB each, the model split across them by layers - memory adds up; speed stays near one card's, about 10% lower for the hand-off. Runtimes like llama.cpp and Ollama do this.`);
   if (m.max_ctx && e.context > m.max_ctx) lines.splice(1, 0, `Warning: ${m.name} handles at most ${m.max_ctx.toLocaleString("en-US")} tokens of context - ${e.context.toLocaleString("en-US")} is beyond what it was made for, whatever the memory. The numbers below are for memory only.`);
   else if (m.native_ctx && e.context > m.native_ctx) lines.push(`Note: past ${m.native_ctx.toLocaleString("en-US")} tokens ${m.name} needs long-context (YaRN) settings turned on in the runtime.`);
+  if (m.family_only) lines.push(`Note: "${m.family_only}" - LocalBit knows one size of it, ${m.name}, so this is for that one.`);
   if (m.asked_as) lines.push(`Note: "${m.asked_as}" is built on the same design as ${m.name}, so it is sized as that.`);
   if (g.asked_as) lines.push(`Note: "${g.asked_as}" is sized as ${g.name}.`);
   if (g.vendor === "apple" && g.matched === "generic") lines.push(`Note: a Mac LocalBit doesn't list by name - unified memory, about 75% usable for the model, typical ${g.name.split(" (")[0]} bandwidth.`);

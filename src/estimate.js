@@ -74,7 +74,15 @@ export function findGpu(q, gpus) {
   return null;
 }
 
+// (Nov 25 check: people asked "llama 3.3" and "Qwen 2.5" with no size) a family name alone: the one size LocalBit knows, or the list
+export function familyOf(q, models) {
+  const sq = squash(q);
+  if (!sq || /\d+(\.\d+)?b$/.test(sq)) return [];
+  return models.filter(m => squash(m.name).startsWith(sq) && /^\d/.test(squash(m.name).slice(sq.length).replace(/^[a-z]?/, "")));
+}
 export function findModel(q, models) {
+  const fam = familyOf(q, models);
+  if (fam.length === 1 && !bestMatch(q, models)) return { ...fam[0], matched: "known", family_only: q };
   const mdl = bestMatch(q, models);
   if (mdl) { const via = viaAlias(q, mdl); const { __alias, ...row } = mdl; return { ...row, matched: "known", ...(via ? { asked_as: q } : {}) }; }
   const m = norm(q).match(/(\d+(?:\.\d+)?)\s*b\b/);

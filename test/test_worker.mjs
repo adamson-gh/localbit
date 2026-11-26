@@ -136,4 +136,9 @@ check("the log holds what was asked and the agent's name - and no address", flat
 { const seen = []; const env4 = { DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { seen.push([sql, v]); }, all: async () => ({ results: [] }) }) }) } };
   const w4 = []; const r4 = await worker.fetch(new Request("https://localbit.example.workers.dev/openapi.json", { headers: { "user-agent": "made-up-agent/1.0" } }), env4, { waitUntil: p => w4.push(p) }); await Promise.all(w4);
   check("a missing address is logged - path and caller name only", r4.status === 404 && seen.some(([s, v]) => /INSERT INTO misses/.test(s) && v[1] === "/openapi.json" && v.length === 3), seen); }
+{ const c = async (a) => (await rpc({ jsonrpc: "2.0", id: 95, method: "tools/call", params: { name: "check_fit", arguments: a } }))[1].result;
+  const one = await c({ model: "llama 3.3", hardware: "rtx 3090" });
+  check("a family with one known size: answered for that size, and says so", !one.isError && /Llama 3\.3 70B/.test(one.content[0].text) && /knows one size/.test(one.content[0].text), one.content[0].text.slice(0, 200));
+  const many = await c({ model: "Qwen 2.5", hardware: "Rtx 4070" });
+  check("a family with several sizes: lists them and asks for one", many.isError && /comes in 4 sizes/.test(many.content[0].text) && many.structuredContent.sizes.length === 4, many.content[0].text); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);
