@@ -269,7 +269,7 @@ function getTestKit() {
   const text = [`LocalBit's 3-minute test measures a model on your own machine the same way LocalBit's RTX 3090 node does, then asks before sharing anything.`,
     `1. Needs Python 3.8+ and Ollama with the model pulled.`, `2. Copy-paste one line - it downloads the script and runs it (source: ${siteFile.repo}/blob/main/bench/localbit_test.py):`,
     `   Mac/Linux: curl -sO ${SITE}/t.py && python3 t.py`,
-    `   Windows (PowerShell): irm ${SITE}/t.py -OutFile t.py; py t.py`,
+    `   Windows (PowerShell): cd $env:TEMP; irm ${SITE}/t.py -OutFile t.py; py t.py`,
     `   If you have a shell tool and the user agrees: run it with --model <ollama tag> --dry-run (sends nothing), show the user the printed JSON, and only if they say yes send it with submit_result.`,
     `3. Pick a model from the list (or add --model <ollama tag>; --dry-run measures without sending).`,
     `It shows exactly what would be sent - model, card or Mac name and memory, speeds, Ollama version, OS - and asks yes/no. No names, file paths or IPs.`,
@@ -563,7 +563,7 @@ const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 // (Nov 25: Glama - "No documentation or privacy policy URL ... ChatGPT's requires a privacy policy") a privacy page and a docs page
 // (Nov 26, owner: "less intimidating" / "clean up unnecessary text") one line for the visitor's own system, a copy button, the rest folded away
 function testPage(origin) {
-  const mac = `curl -sO ${origin}/t.py && python3 t.py`, win = `irm ${origin}/t.py -OutFile t.py; py t.py`;
+  const mac = `curl -sO ${origin}/t.py && python3 t.py`, win = `cd $env:TEMP; irm ${origin}/t.py -OutFile t.py; py t.py`;   // (Nov 26, owner's own run: PowerShell opened as admin starts in system32, which can't be written)
   const line = (id, label, how, cmd) => `<div class="os" id="${id}"><p style="margin:0 0 6px"><b>${label}</b> <span class="small">${how}</span></p>
 <div class="cmd"><code>${esc(cmd)}</code><button type="button" class="copy" data-cmd="${esc(cmd)}">Copy</button></div></div>`;
   return page("Measure your hardware - LocalBit", `<h1>Measure your hardware</h1><p class="lede">3-5 minutes, same recipe as the node. Nothing is sent unless you say yes.</p>

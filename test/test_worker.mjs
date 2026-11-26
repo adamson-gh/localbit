@@ -189,7 +189,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const a = await r.json();
   check("a submission answers with the link to its result", a.url && a.url.endsWith("/run/llama-3.1-8b/on/rtx-4060") && a.answer.includes("listed now at " + a.url), a);
   const tp = await (await call("/test")).text();
-  check("the test page: one copyable line per system (python3 on Mac), the other folded by script, the community count", /data-cmd="curl -sO [^"]*\/t\.py &amp;&amp; python3 t\.py"/.test(tp) && /data-cmd="irm [^"]*\/t\.py -OutFile t\.py; py t\.py"/.test(tp) && /Or ask your AI assistant/.test(tp) && /No community results yet/.test(tp) && (tp.match(/<h1>Local AI models|<h1>Measure your hardware<\/h1>/) || []).length === 1);
+  check("the test page: one copyable line per system (python3 on Mac), the other folded by script, the community count", /data-cmd="curl -sO [^"]*\/t\.py &amp;&amp; python3 t\.py"/.test(tp) && /data-cmd="cd \$env:TEMP; irm [^"]*\/t\.py -OutFile t\.py; py t\.py"/.test(tp) && /Or ask your AI assistant/.test(tp) && /No community results yet/.test(tp) && (tp.match(/<h1>Local AI models|<h1>Measure your hardware<\/h1>/) || []).length === 1);
   const hp = await (await call("/")).text();
   check("the home page: new title, and an invitation to measure untested hardware", /<h1>Local AI models, checked against your hardware<\/h1>/.test(hp) && /<a href="[^"]*\/test">Measure it<\/a> in 3 minutes/.test(hp) && !/Will this AI model run/.test(hp.replace(/<meta[^>]*>/g, ""))); }
 // suggestion box (Nov 26)
