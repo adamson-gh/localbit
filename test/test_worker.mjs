@@ -2,7 +2,7 @@ import fs from "fs";
 // LocalBit: the Worker answered as an agent would call it - MCP and the plain API - with a fake log database. node test/test_worker.mjs
 import worker from "../src/worker.js";
 let ok = 0, bad = 0;
-const check = (name, cond, got) => { cond ? ok++ : bad++; console.log((cond ? "PASS " : "FAIL ") + name + (cond ? "" : "  got: " + JSON.stringify(got).slice(0, 300))); };
+const check = (name, cond, got) => { cond ? ok++ : bad++; console.log((cond ? "PASS " : "FAIL ") + name + (cond ? "" : "  got: " + String(JSON.stringify(got)).slice(0, 300))); };
 const rows = [];
 const env = { STATS_KEY: "made-up-key", DB: { prepare: sql => ({ bind: (...v) => ({ run: async () => { rows.push(v); }, all: async () => ({ results: [] }) }) }) } };
 const waits = []; const ctx = { waitUntil: p => waits.push(p) };
@@ -145,4 +145,8 @@ check("the log holds what was asked and the agent's name - and no address", flat
     check("Glama claim file at " + pth + ": the claim token, no email", g["$schema"].includes("glama.ai/mcp/schemas/connector.json") && /^glama_claim_/.test(g.claim) && !JSON.stringify(g).includes("@")); }
   const mj2 = await (await call("/.well-known/mcp.json")).json();
   check("MCP discovery file: where to connect and the tools", /\/mcp$/.test(mj2.endpoint) && mj2.transport === "streamable-http" && mj2.tools.includes("check_fit")); }
+{ const pv = await call("/privacy"), dc = await call("/docs"), lg = await call("/logo.svg");
+  check("privacy policy, docs and logo pages are served", pv.status === 200 && /Privacy policy/.test(await pv.text()) && dc.status === 200 && /JSON API/.test(await dc.text()) && lg.headers.get("content-type") === "image/svg+xml");
+  const [s9, j9] = await rpc({ jsonrpc: "2.0", id: 99, method: "tools/list" });
+  check("every tool description says when to use it instead of its siblings", j9.result.tools.every(x => /Use this (when|after)|Call this first/.test(x.description)), j9.result.tools.map(x => x.name)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

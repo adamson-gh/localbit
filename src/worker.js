@@ -46,8 +46,7 @@ const OUT = {
 };
 const TOOLS = [
   { name: "check_fit", title: "Will this model run on this hardware?",
-    description: "Whether a local AI model fits on a graphics card or Apple computer, the memory it needs (weights + context cache), and estimated " +
-      "generation speed in tokens per second. Says whether the speed is estimated or measured, and what to change if it doesn't fit.",
+    description: "Checks whether one local AI model fits one hardware setup - a graphics card, several identical cards ('2x RTX 3090') or a Mac - and returns the verdict (fits / tight / does_not_fit), memory needed (weights + context cache + overhead) against memory available, and generation speed in tokens per second: measured on LocalBit's test node where it has run that pair, otherwise estimated with a likely range. When it doesn't fit, it says what to change (smaller quantization, shorter context, other hardware); it warns when the context exceeds the model's published maximum. Use this when the user names a model and their hardware. Use suggest_models instead when they only name hardware ('what can I run?'), compare when weighing two options, and list_known first if a name isn't recognised (unknown names return the closest known ones). Every answer includes a citable source_url and the date the data is current as of.",
     inputSchema: { type: "object", required: ["model", "hardware"], properties: {
       model: { type: "string", description: "Model name, e.g. 'Llama 3.1 8B', 'qwen3:30b', 'gpt-oss 20b', or a size like '13B model'. list_known gives exact names." },
       hardware: { type: "string", description: "Graphics card, several cards ('2x RTX 3090') or a Mac ('M2 Pro 32 GB'), or memory like '12 GB card'. list_known gives exact names." },
@@ -56,19 +55,18 @@ const TOOLS = [
       kv_cache: { type: "string", description: "Context cache type: f16 (default), q8_0 or q4_0." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "suggest_models", title: "Which models fit this hardware?",
-    description: "The largest known local AI models that fit on the given hardware at the given context, with memory and estimated speed.",
+    description: "Lists the largest known local AI models that fit on the given hardware at the given context length (default 8,192 tokens), up to 10, biggest first, each with its quantization, memory needed and speed in tokens per second (measured where LocalBit's node has run it, otherwise estimated). min_tokens_per_s drops models slower than that. Use this when the user names only their hardware and asks what they can run; use check_fit to verify one specific model, and compare to weigh two. If nothing fits it says so; unknown hardware returns an error with how to describe it (a card name, memory like '16 GB', or a Mac chip).",
     inputSchema: { type: "object", required: ["hardware"], properties: {
       hardware: { type: "string", description: "Graphics card or computer, e.g. 'RTX 4060', 'M4 Pro', '16 GB'." },
       context: { type: "integer", description: "Context length in tokens (default 8192)." },
       min_tokens_per_s: { type: "number", description: "Only models at least this fast (estimated)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "list_known", title: "Models and hardware LocalBit knows",
-    description: "The models or the graphics cards / Macs LocalBit has specifications for - names, ids, sizes, and which the node has measured. Call it first if unsure of a name.",
+    description: "Returns LocalBit's catalog: kind 'models' gives every model with its id, name and parameter count (and active parameters for mixture-of-experts models); kind 'hardware' gives every graphics card and Mac with its id, name and memory. Each entry says whether LocalBit's test node has measured it. Call this first when unsure how to name a model or card, then pass the exact id to check_fit, compare or suggest_models. Sizes not listed still work in those tools ('13B model', '12 GB card', 'M2 Pro 32 GB').",
     inputSchema: { type: "object", required: ["kind"], properties: { kind: { type: "string", enum: ["models", "hardware"] } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "compare", title: "Compare two models or two cards",
-    description: "Head to head: two models on the same hardware, or one model on two pieces of hardware. Says which fits, which is faster, " +
-      "which leaves more memory free, and - where LocalBit's node measured them - which scores higher on its quality check and uses less energy.",
+    description: "Compares two options head to head, in one of two modes: two models on the same hardware (give a_model, b_model and a_hardware), or one model on two hardware setups (give a_model, a_hardware and b_hardware). Returns which fits, which is faster (with the ratio), which leaves more memory free and - only where LocalBit's node measured both - which scores higher on its quality check and uses less energy per answer; otherwise it says those are unavailable. context (default 8,192 tokens) applies to both. Use this when the user is choosing between two options; use check_fit for a single model and hardware. Giving neither b_model nor b_hardware returns an error asking for the second option.",
     inputSchema: { type: "object", required: ["a_model", "a_hardware"], properties: {
       a_model: { type: "string", description: "First model, e.g. 'gemma 4 e4b'." },
       a_hardware: { type: "string", description: "First hardware, e.g. 'rtx 3090'." },
@@ -77,12 +75,11 @@ const TOOLS = [
       context: { type: "integer", description: "Context length in tokens (default 8192)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "node_log", title: "Latest readings from LocalBit's test node",
-    description: "What LocalBit's RTX 3090 node tested most recently: each model's measured speed, quality score, memory and energy, newest first.",
+    description: "Returns the newest measurements from LocalBit's own RTX 3090 test node, newest first (default 10, up to 50): for each model, measured speed in tokens per second at 16K context, quality score (% of 60 script-graded questions right), card memory used, time to read a 3,000-word document, energy per answer, and the date. Use this when the user asks what has actually been tested or measured recently, or wants real results rather than estimates; use check_fit or compare to answer about a specific model and hardware (they include these measurements automatically when they apply).",
     inputSchema: { type: "object", properties: { limit: { type: "integer", description: "How many models (default 10)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "report_issue", title: "Report a wrong or missing answer",
-    description: "Tell LocalBit an answer was wrong (it didn't fit, the speed was different, a spec is off) or a model or card is missing. " +
-      "Real results help most: the tokens/s and memory actually seen, and the runtime. Don't include names, emails or other personal details.",
+    description: "Sends LocalBit a report that an answer was wrong (it didn't fit, the speed was different, a spec is off) or that a model or card is missing, so it can be corrected. Use this after check_fit, compare or suggest_models gave an answer the user's real experience contradicts. Real results help most: the tokens per second and memory actually seen, the context length and the runtime. Never include names, emails or other personal details - notes are stored as written with emails, numbers and links removed. Returns a confirmation; each call files a separate report, so send it once. Limited to 5 reports a minute.",
     inputSchema: { type: "object", required: ["problem"], properties: {
       problem: { type: "string", enum: ["wrong_fit", "wrong_speed", "wrong_spec", "missing_model", "missing_hardware", "other"] },
       model: { type: "string", description: "The model asked about." },
@@ -364,11 +361,11 @@ function page(title, body, origin, desc) {
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc || title + " - memory needed and speed, from LocalBit.")}">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc || "Will this AI model run on my hardware? Memory needed and speed, estimated or measured.")}">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232457d6'/%3E%3Cpath d='M9 8v16h14' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="/logo.svg">
 <meta name="color-scheme" content="light"><style>:root{color-scheme:light}${CSS}</style></head><body>
 <header><div class="in"><a class="logo" href="${origin}/">Local<b>Bit</b></a><nav><a href="${origin}/measured">Latest tested</a><a href="${origin}/log">Node log</a><a href="${origin}/compare">Compare</a><a href="${origin}/#agents">For agents</a><a href="${origin}/about">About</a></nav></div></header>
 <main>${body}</main>
-<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/about">Privacy &amp; data license</a><a href="${siteFile.repo}">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
+<footer><div class="in"><span>LocalBit node ${VERSION}</span><span>${esc(asOfText().replace("Data as of: ", "Last reading: "))}</span><a href="${origin}/llms.txt">llms.txt</a><a href="${origin}/docs">Docs</a><a href="${origin}/privacy">Privacy</a><a href="${origin}/about">About &amp; data license</a><a href="${siteFile.repo}">GitHub</a><span>MCP: <code>${origin}/mcp</code></span></div></footer>
 </body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 function askBox(origin, model = "", hw = "") {
@@ -409,6 +406,34 @@ function checkPage(sp, origin) {
   const d = out.data;
   return page(`Can ${d.model} run on ${d.hardware}? - LocalBit`, `<h1>Can ${esc(d.model)} run on ${esc(d.hardware)}?</h1>${resultCard(out)}
 <div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}</div>`, origin);
+}
+const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#2457d6"/><path d="M150 120 V372 H362" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><g fill="#fff"><rect x="226" y="282" width="34" height="58" rx="10" opacity=".55"/><rect x="276" y="236" width="34" height="104" rx="10" opacity=".75"/><rect x="326" y="180" width="34" height="160" rx="10"/></g></svg>`;
+// (Nov 25: Glama - "No documentation or privacy policy URL ... ChatGPT's requires a privacy policy") a privacy page and a docs page
+function privacyPage(origin) {
+  return page("Privacy policy - LocalBit", `<h1>Privacy policy</h1><p class="lede">Short version: LocalBit keeps what was asked, never who asked.</p>
+<h2>What is recorded</h2><ul><li>For each request: the time, which page or tool, the model and hardware named, the answer's verdict, and the calling app's self-reported name (its user agent or MCP client name).</li>
+<li>Reports that an answer was wrong: what was reported, with emails, phone numbers and links removed from the note.</li>
+<li>Addresses that don't exist when someone asks for one: the path only.</li>
+<li>Internal errors: where they happened and the error message.</li></ul>
+<h2>What is not recorded</h2><ul><li>IP addresses, accounts, cookies, device identifiers, or anything that identifies a person.</li>
+<li>Cloudflare's rate limiter looks at the caller's address for a moment to stop abuse (120 requests a minute); LocalBit never stores it.</li></ul>
+<h2>Use and sharing</h2><p>The records are used only to see what people and agents ask about, find mistakes and improve the answers. They are not sold or shared. Aggregate measurements from LocalBit's own test machine are published as open data (CC BY 4.0); the request log is not.</p>
+<h2>Keeping</h2><p>The log is kept to improve the service and backed up privately by the operator. No sign-in exists, so there is no account data to delete.</p>
+<h2>Operator and contact</h2><p>LocalBit is run by <a href="${OWNER.url}">${OWNER.name}</a>. Questions: open an issue on <a href="${siteFile.repo}/issues">GitHub</a>.</p>
+<p class="small">Hosted on Cloudflare Workers; Cloudflare's own privacy policy covers its network.</p>`, origin);
+}
+function docsPage(origin) {
+  const toolRows = TOOLS.map(x => `<li><code>${esc(x.name)}</code> - ${esc(x.title)}</li>`).join("");
+  return page("Documentation - LocalBit", `<h1>Documentation</h1><p class="lede">Connect an agent, or call the JSON API. Free, no key, no sign-in.</p>
+<h2>MCP</h2><p>Endpoint (Streamable HTTP): <code>${origin}/mcp</code> - registry name <code>${esc(siteFile.registry_name)}</code>. Discovery file: <a href="${origin}/.well-known/mcp.json">/.well-known/mcp.json</a>.</p><ul>${toolRows}</ul>
+<p>Each tool's full description and input schema come back from <code>tools/list</code>; every answer says estimated (with a likely range) or measured, the date the data is current as of, and a <code>source_url</code> to cite.</p>
+<h2>JSON API</h2><ul><li><code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%204060&amp;context=8192&amp;quant=Q4_K_M</code></li>
+<li><code>GET ${origin}/api/compare?a_model=...&amp;a_hardware=...&amp;b_model=...</code> (or <code>b_hardware</code>)</li>
+<li><code>GET ${origin}/api/suggest?hardware=16%20GB</code> · <code>/api/models</code> · <code>/api/hardware</code> · <code>/api/measured</code> · <code>/api/log</code></li>
+<li><code>POST ${origin}/api/report</code> (JSON: problem, model, hardware, observed_tokens_per_s, observed_memory_gb, runtime, note)</li></ul>
+<h2>Hardware</h2><p>Card names ("RTX 4060"), several cards ("2x RTX 3090"), Macs by chip ("M2 Pro 32 GB"), or just memory ("12 GB card").</p>
+<h2>Limits</h2><p>120 requests a minute per address; 5 reports a minute.</p>
+<h2>More</h2><p><a href="${origin}/llms.txt">llms.txt</a> · <a href="${origin}/measured">measurements</a> · <a href="${origin}/privacy">privacy</a> · <a href="${siteFile.repo}">source</a> · <a href="${siteFile.repo}/blob/main/CHANGELOG.md">changelog</a></p>`, origin);
 }
 function about(origin) {
   return page("About LocalBit - who runs it, privacy, data license", `<h1>About LocalBit</h1>
@@ -543,7 +568,7 @@ function llmsTxt(origin) {
     `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
 }
 function sitemap(origin) {
-  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/about"];
+  const urls = [origin + "/", origin + "/measured", origin + "/log", origin + "/compare", origin + "/docs", origin + "/privacy", origin + "/about"];
   for (const m of DATA.models) for (const g of DATA.gpus) urls.push(`${origin}/run/${m.id}/on/${g.id}`);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc>${AS_OF.specs ? `<lastmod>${[AS_OF.specs, AS_OF.measured].filter(Boolean).sort().pop()}</lastmod>` : ""}</url>`).join("\n")}\n</urlset>`,
     { headers: { "content-type": "application/xml" } });
@@ -622,6 +647,9 @@ async function handle(request, env, ctx) {
     if (path === "/log.rss") { logCall(env, ctx, { kind: "log_rss", ua }); return logRss(origin); }
     if (path === "/api/log") { const o = nodeLog(sp); return json({ answer: o.text, ...o.data }); }
     if (path === "/measured") { logCall(env, ctx, { kind: "measured", ua }); return measuredPage(origin); }
+    if (path === "/logo.svg") return new Response(LOGO_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
+    if (path === "/privacy") { logCall(env, ctx, { kind: "privacy", ua }); return privacyPage(origin); }
+    if (path === "/docs") { logCall(env, ctx, { kind: "docs", ua }); return docsPage(origin); }
     if (path === "/about") { logCall(env, ctx, { kind: "about", ua }); return about(origin); }
     // (Nov 25) standard discovery files: Glama's ownership claim, and the proposed MCP server description
     // (Nov 25) Glama's claim: a token bound to the owner's Glama account - no email, nothing personal. Served for the endpoint
@@ -629,7 +657,7 @@ async function handle(request, env, ctx) {
     if (path === "/.well-known/glama.json" || path === "/mcp/.well-known/glama.json") return json({ "$schema": "https://glama.ai/mcp/schemas/connector.json", claim: siteFile.glama_claim });
     if (path === "/.well-known/mcp.json") return json({ name: "LocalBit", description: "Will this AI model run on this hardware? Memory needed and estimated or measured speed for local models on graphics cards and Macs.",
       version: VERSION, endpoint: SITE + "/mcp", transport: "streamable-http", protocol_versions: PROTOCOLS, authentication: "none",
-      tools: TOOLS.map(x => x.name), registry: siteFile.registry_name, documentation: SITE + "/llms.txt", website: SITE, repository: siteFile.repo });
+      tools: TOOLS.map(x => x.name), registry: siteFile.registry_name, documentation: SITE + "/docs", privacy_policy: SITE + "/privacy", icon: SITE + "/logo.svg", website: SITE, repository: siteFile.repo });
     if (path === "/llms.txt") { logCall(env, ctx, { kind: "llms_txt", ua }); return new Response(llmsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8" } }); }
     if (path === "/sitemap.xml") return sitemap(origin);
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
