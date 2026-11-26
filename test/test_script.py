@@ -39,9 +39,9 @@ def check(name, cond, got=""):
     ok, bad = (ok + 1, bad) if cond else (ok, bad + 1)
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  got: %r" % (got,)))
 r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
-check("dry run: measures, shows what would be sent, sends nothing", r.returncode == 0 and '"gen_tps": 64.0' in r.stdout and "nothing sent" in r.stdout and not posted, (r.stdout[-400:], r.stderr[-300:]))
+check("dry run: measures, shows what would be sent, sends nothing", r.returncode == 0 and '"gen_tps": 64.0' in r.stdout and "nothing was sent" in r.stdout and not posted, (r.stdout[-400:], r.stderr[-300:]))
 r = subprocess.run([sys.executable, script, "--model", "made-up:7b"], env=env, input="n\n", capture_output=True, text=True, timeout=120)
-check("answering no: nothing is sent", r.returncode == 0 and "Not sent" in r.stdout and not posted, r.stdout[-300:])
+check("answering no: nothing is sent", r.returncode == 0 and "nothing was sent" in r.stdout and not posted, r.stdout[-300:])
 r = subprocess.run([sys.executable, script, "--model", "made-up:7b"], env=env, input="y\n", capture_output=True, text=True, timeout=120)
 check("answering yes: sent once, LocalBit's reply shown", len(posted) == 1 and "recorded" in r.stdout, (posted, r.stdout[-300:]))
 p = posted[0] if posted else {}

@@ -14,7 +14,7 @@
 - Owner stats: real questions counted apart from monitoring probes, crawlers and the owner's own test; unknown models/cards from real callers listed separately from size-only answers.
 - A model family asked without a size ("Qwen 2.5 on an RTX 4070") gets every size at once and the largest that fits, instead of "ask again"; check_fit's output schema now lists the community basis.
 - Test script (from the owner's own run): embedding models left out of the list; a model Ollama can't run gets a plain message, not a traceback; other loaded models are named and can be unloaded first (the node measures with nothing else loaded); the model is loaded before timing; the Windows line runs from the temp folder.
-- Test script shows its work: numbered steps (hardware and how it was read, Ollama, getting ready, writing speed per context with a live bar as the model writes, reading speed), what each number means, a results summary, and after sharing how the result compares with LocalBit's estimate. Plain output when not in a terminal.
+- Test script shows its work: numbered steps (hardware and how it was read, Ollama, getting ready, writing speed per context with a live bar as the model writes, reading speed), what each number means, a results summary, and after sharing how the result compares with LocalBit's estimate. Plain output when not in a terminal. Ends with a readable list of what would be sent (exact data with --json) and a closing block: what happened, the headline number, and where to go next.
 - Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
 
 ## 0.4.0 - 2026-11-26

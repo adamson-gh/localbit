@@ -10,7 +10,7 @@ What it does: talks to your local Ollama (http://127.0.0.1:11434) only, runs the
 reads your graphics card's or Mac's name and memory size. Before anything leaves your computer it prints exactly what would be
 sent and asks. It never sends names, usernames, file paths, IP addresses, hostnames or serial numbers. Python 3.8+, nothing to
 install. Source: https://github.com/adamson-gh/localbit (MIT)."""
-import json, os, platform, re, statistics, subprocess, sys, time, urllib.error, urllib.request
+import json, os, platform, re, statistics, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 
 SITE = os.environ.get("LOCALBIT_SITE", "https://localbit.adamson-cf.workers.dev")
 OLLAMA = os.environ.get("LOCALBIT_OLLAMA", "http://127.0.0.1:11434")
@@ -362,24 +362,55 @@ def run():
                               "" if r.get("all_on_gpu") in (True, None) else yellow("   partly in system memory")))
     sub = {"recipe_version": R.get("recipe_version"), "model": model, "quant": quant, "hardware": hw["hardware"], "memory_gb": hw["memory_gb"],
            "cards": hw["cards"], "runtime": "Ollama " + str(ver or "?"), "os": platform.system(), "results": results, "client": "localbit-test/" + VERSION}
-    print("\n " + bold("This is everything that would be sent to LocalBit:") + "  " + dim("no names, paths, addresses or serial numbers\n"))
-    print("\n".join("    " + l for l in json.dumps(sub, indent=1).splitlines()))
+    # (Nov 26, owner: "it leaves me at the bottom with numbers on the screen ... can we finish it better?") a readable list of
+    # everything that would be sent (the exact data with --json or --dry-run), then a closing block with where to go next
+    res = " · ".join("%s: %.1f tokens/s%s" % (format(r["context"], ","), r["gen_tps"] or 0, (", reading %s" % format(int(r["prompt_tps"]), ",")) if r.get("prompt_tps") else "") for r in results)
+    print("\n " + bold("What would be sent - all of it:"))
+    for k, v in (("model", "%s%s" % (model, (" %s %s" % (DOT, quant)) if quant else "")),
+                 ("hardware", "%s%s %s %d card%s" % (hw["hardware"], (" %s %g GB" % (DOT, hw["memory_gb"])) if hw.get("memory_gb") else "", DOT, hw["cards"], "" if hw["cards"] == 1 else "s")),
+                 ("software", "Ollama %s %s %s" % (ver or "?", DOT, platform.system())), ("results", res),
+                 ("also", "whether it fit in the card's memory, how much was loaded, recipe version %s" % R.get("recipe_version"))):
+        say("%-10s %s" % (k, v))
+    say(dim("Never names, usernames, file paths, IP addresses or serial numbers.") + ("" if (dry or "--json" in args) else dim("  (add --json to see the exact data)")))
+    if dry or "--json" in args:
+        print()
+        print("\n".join("    " + l for l in json.dumps(sub, indent=1).splitlines()))
+    page = "%s/check?model=%s&hardware=%s" % (SITE, urllib.parse.quote(model), urllib.parse.quote(hw["hardware"]))
+    first = results[0] if results else {}
+    headline = "%s on %s: %s tokens/s - about %d words a second." % (model, hw["hardware"], ("%.1f" % first["gen_tps"]) if first.get("gen_tps") else "?", round((first.get("gen_tps") or 0) * 0.75))
+
+    def close(done, nexts):
+        print("\n " + dim(LINE * 72))
+        print(" " + bold(done))
+        print(" " + headline)
+        print("\n " + bold("Next"))
+        for a, b in nexts:
+            say("%s %-22s %s" % (DOT, a, b))
+        print()
+
     if dry:
-        print("\n(--dry-run: nothing sent.)"); return 0
+        close("Done - dry run, nothing was sent.", [("See LocalBit's answer", page), ("Test another model", "py t.py" if os.name == "nt" else "python3 t.py"),
+                                                   ("Share for real", "run it again without --dry-run")])
+        return 0
     if input("\n Share these numbers with LocalBit? They become public, anonymous open data. [y/N] ").strip().lower() not in ("y", "yes"):
-        print(" Not sent. Thanks for testing!"); return 0
+        close("Done - nothing was sent. Thanks for testing!", [("See LocalBit's answer", page), ("Test another model", "py t.py" if os.name == "nt" else "python3 t.py"),
+                                           ("Changed your mind?", "run it again and answer y")])
+        return 0
     try:
         ans = http(SITE + "/api/submit", sub, timeout=30)
     except Exception as e:
-        print(" Couldn't send (%s) - nothing was shared." % type(e).__name__); return 1
+        print(" Couldn't send (%s) - nothing was shared." % type(e).__name__)
+        close("Done - nothing was sent (couldn't reach LocalBit).", [("Try again later", "py t.py" if os.name == "nt" else "python3 t.py")])
+        return 1
     print("\n " + ans.get("answer", json.dumps(ans)))
     for r in ans.get("rows") or []:   # how the result compares with what LocalBit predicted
         if r.get("est_tps") and r.get("gen_tps"):
             d = 100 * (r["gen_tps"] - r["est_tps"]) / r["est_tps"]
             say("%s context: you measured %.1f, LocalBit estimated %.1f %s %s" % (format(r["context"], ","), r["gen_tps"], r["est_tps"], DOT,
                 "spot on" if abs(d) < 5 else ("%d%% %s than estimated" % (abs(d), "faster" if d > 0 else "slower"))))
-    if ans.get("url"):
-        print("\n Your result: %s\n %s" % (bold(ans["url"]), dim("Share it if you like - it helps the next person with your hardware decide to test too.")))
+    nexts = [("Your result", ans["url"])] if ans.get("url") else [("See LocalBit's answer", page)]
+    nexts += [("Share it", "post the link - it helps the next person with your hardware decide to test"), ("Test another model", "py t.py" if os.name == "nt" else "python3 t.py")]
+    close("Done - thank you. Your numbers are in." if ans.get("status") == "community" else "Done - sent, and held for a quick review before it's published.", nexts)
     return 0
 
 
