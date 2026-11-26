@@ -2,9 +2,9 @@
 """LocalBit's 3-minute test - measure a local AI model on YOUR machine, the same way LocalBit's own RTX 3090 node does, and
 (only if you say yes) share the numbers so everyone gets real results for your hardware.
 
-    python localbit_test.py                      pick a model you already have in Ollama
-    python localbit_test.py --model llama3.1:8b  test that one
-    python localbit_test.py --dry-run            measure and show what would be sent, send nothing
+    python3 localbit_test.py                      pick a model you already have in Ollama (Windows: py localbit_test.py)
+    python3 localbit_test.py --model llama3.1:8b  test that one
+    python3 localbit_test.py --dry-run            measure and show what would be sent, send nothing
 
 What it does: talks to your local Ollama (http://127.0.0.1:11434) only, runs the published recipe (localbit .../recipe.json),
 reads your graphics card's or Mac's name and memory size. Before anything leaves your computer it prints exactly what would be
@@ -31,6 +31,46 @@ def recipe():
     return http(SITE + "/recipe.json", timeout=30)
 
 
+def squash(s):
+    return re.sub(r"[^a-z0-9]", "", re.sub(r"(?i)\b(nvidia|geforce|amd|radeon|intel|apple|graphics)\b", "", s.lower()))
+
+
+def candidates(name, known):
+    """LocalBit's own names that match what was detected or typed: exact first, then every word of it found in the name."""
+    sq = squash(name)
+    exact = [k for k in known if squash(k["name"]) == sq or any(squash(a) == sq for a in k.get("aliases", []))]
+    if exact:
+        return exact[:1]
+    words = [w for w in re.findall(r"[a-z]+|\d+", name.lower()) if w not in ("nvidia", "geforce", "amd", "radeon", "intel", "apple", "graphics", "gb")]
+    return [k for k in known if words and all(w in squash(k["name"]) for w in words)][:8]
+
+
+def settle(hw, known=None, ask=input):
+    """When the name came from typing or Windows (not nvidia-smi or a Mac), confirm it against LocalBit's card list, so a typo
+    doesn't turn a good result into a flagged one. Offline or no match: keep what was given."""
+    if not hw.get("unsure") and hw.get("memory_gb"):
+        return hw
+    try:
+        known = known if known is not None else http(SITE + "/api/hardware", timeout=20).get("hardware", [])
+    except Exception:
+        return hw
+    c = candidates(hw["hardware"], known)
+    if len(c) == 1:
+        pick = c[0]
+    elif c:
+        print("Which of these is it?")
+        for i, k in enumerate(c, 1):
+            print("%2d. %s (%s GB)" % (i, k["name"], k.get("vram_gb")))
+        a = ask("Number (or Enter to keep '%s'): " % hw["hardware"]).strip()
+        pick = c[int(a) - 1] if a.isdigit() and 1 <= int(a) <= len(c) else None
+    else:
+        pick = None
+    if pick:
+        hw = dict(hw, hardware=pick["name"], memory_gb=hw.get("memory_gb") or pick.get("vram_gb"))
+    hw.pop("unsure", None)
+    return hw
+
+
 def hardware():
     """The card or Mac name and memory only - read from nvidia-smi / rocm-smi / macOS system info. Nothing else."""
     if os.environ.get("LOCALBIT_FAKE_GPU"):
@@ -47,7 +87,7 @@ def hardware():
         try:
             chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=10).stdout.strip()
             mem = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=10).stdout.strip()) / 2**30
-            return {"hardware": chip, "memory_gb": round(mem), "cards": 1}
+            return {"hardware": "%s %d GB" % (chip, round(mem)), "memory_gb": round(mem), "cards": 1}
         except Exception:
             pass
     try:
@@ -57,6 +97,14 @@ def hardware():
             return {"hardware": m.group(1).strip(), "memory_gb": None, "cards": 1}
     except Exception:
         pass
+    if platform.system() == "Windows":   # AMD and Intel cards on Windows: the name Windows shows in Device Manager (its memory figure isn't reliable)
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_VideoController).Name"], capture_output=True, text=True, timeout=20).stdout
+            names = [l.strip() for l in out.splitlines() if l.strip() and not re.search(r"(?i)basic|virtual|remote|parsec|meta", l)]
+            if names:
+                return {"hardware": names[0], "memory_gb": None, "cards": 1, "unsure": True}
+        except Exception:
+            pass
     return {"hardware": input("Graphics card or Mac (e.g. 'RTX 4060' or 'M2 Pro 32 GB'): ").strip(), "memory_gb": None, "cards": 1}
 
 
@@ -93,6 +141,8 @@ def main():
     thinks = "thinking" in (show.get("capabilities") or [])
     quant = (show.get("details") or {}).get("quantization_level")
     hw = hardware()
+    if not os.environ.get("LOCALBIT_FAKE_GPU"):
+        hw = settle(hw)
     try:
         ver = http(OLLAMA + "/api/version", timeout=10).get("version")
     except Exception:
@@ -132,6 +182,8 @@ def main():
     try:
         ans = http(SITE + "/api/submit", sub, timeout=30)
         print("\n" + ans.get("answer", json.dumps(ans)))
+        if ans.get("url"):
+            print("\nYour result: %s\n(Share it if you like - it helps the next person with your hardware decide to test too.)" % ans["url"])
     except Exception as e:
         print("Couldn't send (%s) - nothing was shared." % type(e).__name__); return 1
     return 0

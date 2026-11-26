@@ -48,4 +48,16 @@ subs = [dict(ts="2026-11-26T10:00:00Z", model_id="llama-3.1-8b", gpu_id="rtx-406
 r = subprocess.run([sys.executable, str(ROOT / "bench" / "publish_community.py")], env=dict(os.environ, LOCALBIT_SUBMISSIONS=str(tmp / "subs.json"), LOCALBIT_COMMUNITY=str(tmp / "c.json")), capture_output=True, text=True, timeout=60)
 c = json.loads((tmp / "c.json").read_text())["community"] if (tmp / "c.json").exists() else []
 check("community data: flagged rows left out, the middle of the plausible ones, how many", len(c) == 1 and c[0]["gen_tps"] == 41 and c[0]["n"] == 3, (c, r.stderr[-200:]))
+# confirming the card against LocalBit's list (Windows AMD/Intel and typed names)
+import importlib.util
+sp = importlib.util.spec_from_file_location("lbt", script); lbt = importlib.util.module_from_spec(sp); sp.loader.exec_module(lbt)
+known = [{"name": "AMD Radeon RX 7900 XTX", "vram_gb": 24}, {"name": "AMD Radeon RX 7900 XT", "vram_gb": 20}, {"name": "NVIDIA GeForce RTX 4060", "vram_gb": 8, "aliases": ["4060"]}]
+h = lbt.settle({"hardware": "AMD Radeon RX 7900 XTX", "memory_gb": None, "cards": 1, "unsure": True}, known, ask=lambda q: "")
+check("Windows' card name matching LocalBit's exactly: taken, with its memory", h == {"hardware": "AMD Radeon RX 7900 XTX", "memory_gb": 24, "cards": 1}, h)
+h = lbt.settle({"hardware": "7900", "memory_gb": None, "cards": 1}, known, ask=lambda q: "2")
+check("a vague typed name: pick from LocalBit's matching cards", h["hardware"] == "AMD Radeon RX 7900 XT" and h["memory_gb"] == 20, h)
+h = lbt.settle({"hardware": "Arc B580", "memory_gb": None, "cards": 1}, known, ask=lambda q: "")
+check("no match: keeps what was typed", h["hardware"] == "Arc B580", h)
+h = lbt.settle({"hardware": "NVIDIA GeForce RTX 4060", "memory_gb": 8, "cards": 1}, None, ask=lambda q: 1 / 0)
+check("nvidia-smi or a Mac (name and memory known): no question, no lookup", h["hardware"] == "NVIDIA GeForce RTX 4060")
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)

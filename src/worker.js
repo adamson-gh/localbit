@@ -239,12 +239,22 @@ function nodeLog(args) {
 }
 for (const tdef of TOOLS) if (OUT[tdef.name]) tdef.outputSchema = OUT[tdef.name];
 // ---------- contributions (Nov 26, owner: "plan then build") ----------
+function communityCount() {
+  const c = communityFile.community || [];
+  return { results: c.reduce((n, r) => n + (r.n || 1), 0), cards: new Set(c.map(r => r.gpu)).size };
+}
+function communityLine() {
+  const k = communityCount();
+  return k.results ? `${k.results} community result${k.results > 1 ? "s" : ""} on ${k.cards} card${k.cards > 1 ? "s" : ""} or Mac${k.cards > 1 ? "s" : ""} so far.` : "No community results yet - yours would be the first.";
+}
 function getTestKit() {
   const text = [`LocalBit's 3-minute test measures a model on your own machine the same way LocalBit's RTX 3090 node does, then asks before sharing anything.`,
-    `1. Needs Python 3.8+ and Ollama with the model pulled.`, `2. Download: ${SITE}/test.py  (source: ${siteFile.repo}/blob/main/bench/localbit_test.py)`,
-    `3. Run: python test.py --model <ollama tag>   (add --dry-run to see the numbers without sending)`,
+    `1. Needs Python 3.8+ and Ollama with the model pulled.`, `2. Copy-paste one line - it downloads the script and runs it (source: ${siteFile.repo}/blob/main/bench/localbit_test.py):`,
+    `   Mac/Linux: curl -sO ${SITE}/test.py && python3 test.py`,
+    `   Windows (PowerShell): irm ${SITE}/test.py -OutFile test.py; py test.py`,
+    `3. Pick a model from the list (or add --model <ollama tag>; --dry-run measures without sending).`,
     `It shows exactly what would be sent - model, card or Mac name and memory, speeds, Ollama version, OS - and asks yes/no. No names, file paths or IPs.`,
-    `Recipe (if you'd rather run it yourself): ${SITE}/recipe.json - then send results with submit_result.`].join("\n");
+    `Recipe (if you'd rather run it yourself): ${SITE}/recipe.json - then send results with submit_result.`, communityLine()].join("\n");
   return { text, data: { script_url: SITE + "/test.py", recipe_url: SITE + "/recipe.json", recipe_version: recipeFile.recipe_version, page: SITE + "/test" }, log: { verdict: "test_kit" } };
 }
 function checkSubmission(b) {
@@ -287,10 +297,12 @@ function submitResult(env, ctx, b, source, client) {
     } catch {}
   }
   const what = `${c.m ? c.m.name : b.model} on ${c.g ? c.g.name : b.hardware}`;
+  // (Nov 26, owner: "yes" - show the result right away) the page for this model and card lists recent submissions at once
+  const link = c.m && c.g && c.m.matched === "known" && c.g.matched === "known" && !c.g.cards ? `${SITE}/run/${c.m.id}/on/${c.g.id}` : null;
   const text = c.status === "community"
-    ? `Thank you - recorded as a community result for ${what} (${c.rows.map(r => `${r.gen_tps} tokens/s at ${r.context.toLocaleString("en-US")}`).join(", ")}). It will appear in LocalBit's answers, labelled unverified, after tonight's update.`
+    ? `Thank you - recorded as a community result for ${what} (${c.rows.map(r => `${r.gen_tps} tokens/s at ${r.context.toLocaleString("en-US")}`).join(", ")}). It will appear in LocalBit's answers, labelled unverified, after tonight's update${link ? ` - and is listed now at ${link}` : ""}.`
     : `Recorded, but flagged for review rather than published: ${[...c.reasons, ...c.rows.flatMap(r => r.reasons)].join("; ")}. If the numbers are right, nothing more is needed - flagged results are checked by hand.`;
-  return { text, data: { status: c.status, rows: c.rows.map(({ reasons, ...r }) => ({ ...r, flags: reasons })) }, log: { model_id: c.m && c.m.id, gpu_id: c.g && c.g.id, verdict: "submit_" + c.status } };
+  return { text, data: { status: c.status, url: link, rows: c.rows.map(({ reasons, ...r }) => ({ ...r, flags: reasons })) }, log: { model_id: c.m && c.m.id, gpu_id: c.g && c.g.id, verdict: "submit_" + c.status } };
 }
 function getDetails(args) {
   const q = String(args.name || "").trim();
@@ -487,6 +499,7 @@ function home(origin) {
   return page("LocalBit - will this AI model run on my hardware?", `<h1>Will this AI model run on my hardware?</h1>
 <p class="lede">Memory, speed and a verdict for any local model on your graphics card or Mac. Estimated from published specs. Measured where the node has run it.</p>
 <div class="card">${askBox(origin)}<div class="hint">Try: <a href="${origin}/check?model=llama%203.1%208b&hardware=rtx%204060">Llama 3.1 8B on an RTX 4060</a> · <a href="${origin}/check?model=qwen3%2030b&hardware=rtx%204090">Qwen3 30B on an RTX 4090</a> · <a href="${origin}/check?model=llama%203.3%2070b&hardware=rtx%203090">Llama 3.3 70B on an RTX 3090</a></div>
+<div class="hint">Have a card or Mac LocalBit hasn't measured? <a href="${origin}/test">Measure it in 3 minutes</a> - ${esc(communityLine())}</div>
 <div class="hint">Or ask by address - any model, any card: <code>${origin}/check?model=&lt;model&gt;&amp;hardware=&lt;card&gt;&amp;context=&lt;tokens&gt;</code> (JSON: <code>/api/check</code> with the same words; names: <a href="${origin}/api/hardware">/api/hardware</a>, <a href="${origin}/api/models">/api/models</a>).</div></div>
 <div class="grid3" style="margin-top:22px">
 <div class="card"><h3>Live node</h3><p>An RTX 3090 in the field, testing models every night. ${nMeas} logged so far. <a href="${origin}/measured">Latest tested</a>.</p></div>
@@ -522,11 +535,15 @@ const ICON_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAQAElEQVR4Ae
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#2457d6"/><path d="M150 120 V372 H362" fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/><g fill="#fff"><rect x="226" y="282" width="34" height="58" rx="10" opacity=".55"/><rect x="276" y="236" width="34" height="104" rx="10" opacity=".75"/><rect x="326" y="180" width="34" height="160" rx="10"/></g></svg>`;
 // (Nov 25: Glama - "No documentation or privacy policy URL ... ChatGPT's requires a privacy policy") a privacy page and a docs page
 function testPage(origin) {
-  return page("Measure your own machine - LocalBit", `<h1>Measure your own machine</h1><p class="lede">Three minutes, your hardware, the same method as the node. Share the numbers only if you want to.</p>
-<div class="card"><p style="margin-top:0"><b>1.</b> You need Python 3.8+ and <a href="https://ollama.com">Ollama</a> with a model pulled.</p>
-<p><b>2.</b> <a href="${origin}/test.py">Download localbit_test.py</a> (one file, nothing to install - <a href="${siteFile.repo}/blob/main/bench/localbit_test.py">read the source</a>).</p>
-<p><b>3.</b> Run <code>python localbit_test.py</code> and pick a model. Add <code>--dry-run</code> to measure without sending anything.</p>
-<p style="margin-bottom:0"><b>4.</b> It prints exactly what would be shared - the model, your card or Mac name and memory, the speeds, Ollama version and OS - and asks yes or no.</p></div>
+  return page("Measure your own machine - LocalBit", `<h1>Measure your own machine</h1><p class="lede">Three to five minutes, your hardware, the same method as the node. Share the numbers only if you want to.</p>
+<p class="small"><b>${esc(communityLine())}</b></p>
+<div class="card"><p style="margin-top:0"><b>1.</b> You need <a href="https://ollama.com">Ollama</a> with a model pulled, and Python 3.8+ (most Macs and Linux machines have it).</p>
+<p><b>2.</b> Open a terminal and paste the line for your system. It downloads one file and runs it - nothing is installed.</p>
+<p><b>Mac or Linux</b> (Terminal):<br><code>curl -sO ${origin}/test.py &amp;&amp; python3 test.py</code></p>
+<p><b>Windows</b> (PowerShell):<br><code>irm ${origin}/test.py -OutFile test.py; py test.py</code><br><span class="small">If <code>py</code> isn't found, try <code>python test.py</code>; if that opens the Microsoft Store, Python isn't installed yet - get it from <a href="https://www.python.org/downloads/">python.org</a>.</span></p>
+<p><b>3.</b> Pick one of your models from the list. Add <code>--dry-run</code> to measure without sending anything.</p>
+<p style="margin-bottom:0"><b>4.</b> It prints exactly what would be shared - the model, your card or Mac name and memory, the speeds, Ollama version and OS - and asks yes or no. Say yes and you get a link to your result straight away.</p></div>
+<p class="small">Prefer to look first? <a href="${origin}/test.py">Download the script</a> or <a href="${siteFile.repo}/blob/main/bench/localbit_test.py">read the source</a> (one file, about 200 lines).</p>
 <h2>What gets shared, if you say yes</h2><p>Only those numbers. Never names, usernames, file paths, IP addresses or serial numbers. Results are checked against LocalBit's estimate: plausible ones appear in answers as <b>community</b> results, labelled unverified; unusual ones are held for review. They become open data (CC BY 4.0).</p>
 <h2>For agents</h2><p><code>get_test_kit</code> returns these steps; <code>submit_result</code> sends a result after the user agrees. Recipe: <a href="${origin}/recipe.json">/recipe.json</a>.</p>`, origin);
 }
@@ -672,13 +689,20 @@ ${ids.length ? `<details class="card"><summary>All the numbers as a table</summa
 <h2>Method</h2><p>Each model alone on the card, the middle of 3 runs at each context length, temperature 0, the same made-up prompts for every model. NVIDIA GeForce RTX 3090 24 GB, Windows, ${esc(any.runtime || "Ollama")}${any.driver ? ", driver " + esc(String(any.driver).split(",")[0]) : ""}. "Card memory used" is the whole card's peak, including about 0.5-1 GB for the desktop. Power is the card's average draw while generating.</p>
 <h2>Data</h2><p>JSON: <a href="${origin}/api/measured">${origin}/api/measured</a> · every raw run and the scripts: <a href="${siteFile.repo}">github.com/adamson-gh/localbit</a> · license <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> - credit LocalBit. See something different on your 3090? Use the form on a result page.</p>`, origin);
 }
-function pairPage(mid, gid, origin) {
+async function pairPage(mid, gid, origin, env) {
   const m = DATA.models.find(x => x.id === mid), g = DATA.gpus.find(x => x.id === gid);
   if (!m || !g) return null;
+  // (Nov 26, owner: "yes") a contributor sees their result at once: this pair's submissions from the last week, numbers only
+  let recent = [];
+  try { if (env && env.DB) recent = (await env.DB.prepare("SELECT ts, context, gen_tps, status FROM submissions WHERE model_id = ? AND gpu_id = ? AND ts >= ? ORDER BY ts DESC LIMIT 8")
+    .bind(m.id, g.id, new Date(Date.now() - 7 * 86400000).toISOString()).all()).results || []; } catch {}
+  const recentHtml = recent.length ? `<h2>Submitted this week</h2><p class="small">From people running LocalBit's 3-minute test on this card. Plausible ones join the answer above after the nightly update; others are held for review.</p>
+<table><tr><th>When</th><th>Context</th><th>Speed</th><th>Status</th></tr>${recent.map(r => `<tr><td>${esc(String(r.ts).slice(0, 16).replace("T", " "))} UTC</td><td>${(+r.context).toLocaleString("en-US")}</td><td>${esc(String(r.gen_tps))} tokens/s</td><td>${r.status === "community" ? "accepted - publishes tonight" : "held for review"}</td></tr>`).join("")}</table>` : "";
   const out = checkFit({ model: m.id, hardware: g.id });
   const others = DATA.gpus.filter(x => x.id !== g.id && Math.abs(x.vram_gb - g.vram_gb) <= 8).slice(0, 8)
     .map(x => `<a href="${origin}/run/${m.id}/on/${x.id}">${esc(x.name.replace(/^NVIDIA GeForce |^AMD Radeon /, ""))}</a>`).join("");
   return page(`Can ${m.name} run on ${g.name}? - LocalBit`, `<h1>Can ${esc(m.name)} run on ${esc(g.name)}?</h1>${resultCard(out)}
+${recentHtml}
 <h2>Other cards</h2><div class="chips">${others}</div>
 <h2>Different settings?</h2><p class="small">Ask with your own context length: <code>${origin}/api/check?model=${encodeURIComponent(m.id)}&amp;hardware=${encodeURIComponent(g.id)}&amp;context=32768</code></p>
 <h2>What an agent receives</h2><pre class="small">${esc(out.text)}</pre>
@@ -815,7 +839,7 @@ async function handle(request, env, ctx) {
     if (path === "/sitemap.xml") return sitemap(origin);
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
     const pm = path.match(/^\/run\/([a-z0-9.\-]+)\/on\/([a-z0-9.\-]+)$/);
-    if (pm) { const r = pairPage(pm[1], pm[2], origin); if (r) { logCall(env, ctx, { kind: "page", ua, model_id: pm[1], gpu_id: pm[2] }); return r; } }
+    if (pm) { const r = await pairPage(pm[1], pm[2], origin, env); if (r) { logCall(env, ctx, { kind: "page", ua, model_id: pm[1], gpu_id: pm[2] }); return r; } }
     if (path === "/") { logCall(env, ctx, { kind: "home", ua }); return home(origin); }
     // (Nov 25, owner: "yes") addresses asked for that don't exist - agents guessing standard paths, plus scanner noise. Path only.
     if (env && env.DB) { try { ctx.waitUntil(env.DB.prepare("INSERT INTO misses (ts, path, ua) VALUES (?,?,?)").bind(new Date().toISOString(), path.slice(0, 100), String(ua || "").slice(0, 60)).run().catch(() => {})); } catch {} }

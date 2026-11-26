@@ -178,4 +178,16 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("an unknown model says so first, in plain words", /^LocalBit doesn't know the model "zephyrion 40b" - this is a rough estimate for a typical 40B model/.test(r.answer), r.answer.slice(0, 200));
   const h = await (await call("/")).text();
   check("the home page shows how to ask by address (for agents that can only read pages)", /Or ask by address - any model, any card: <code>[^<]*\/check\?model=&lt;model&gt;&amp;hardware=&lt;card&gt;/.test(h)); }
+// contributor experience (Nov 26)
+{ const rows = [{ ts: "2026-11-26T14:05:00Z", context: 4096, gen_tps: 40.1, status: "community" }, { ts: "2026-11-26T14:06:00Z", context: 16384, gen_tps: 90, status: "flagged" }];
+  const envR = { DB: { prepare: sql => ({ bind: () => ({ all: async () => ({ results: /FROM submissions WHERE model_id/.test(sql) ? rows : [] }), run: async () => {} }) }) } };
+  const pg = await (await worker.fetch(new Request("https://localbit.example.workers.dev/run/llama-3.1-8b/on/rtx-4060"), envR, { waitUntil() {} })).text();
+  check("the model/card page lists this week's submissions at once, accepted vs held", /Submitted this week/.test(pg) && /40\.1 tokens\/s<\/td><td>accepted - publishes tonight/.test(pg) && /held for review/.test(pg));
+  const w = []; const r = await worker.fetch(new Request("https://localbit.example.workers.dev/api/submit", { method: "POST", body: JSON.stringify({ model: "llama3.1:8b", hardware: "NVIDIA GeForce RTX 4060", memory_gb: 8, results: [{ context: 4096, gen_tps: 40, all_on_gpu: true }] }) }), envR, { waitUntil: p => w.push(p) });
+  const a = await r.json();
+  check("a submission answers with the link to its result", a.url && a.url.endsWith("/run/llama-3.1-8b/on/rtx-4060") && a.answer.includes("listed now at " + a.url), a);
+  const tp = await (await call("/test")).text();
+  check("the test page: copy-paste lines for Mac/Linux (python3) and Windows, and the community count", /curl -sO [^<]*\/test\.py &amp;&amp; python3 test\.py/.test(tp) && /irm [^<]*\/test\.py -OutFile test\.py; py test\.py/.test(tp) && /No community results yet - yours would be the first/.test(tp));
+  const hp = await (await call("/")).text();
+  check("the home page invites a test where LocalBit hasn't measured", /Measure it in 3 minutes<\/a>/.test(hp)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

@@ -7,6 +7,7 @@
 - An unknown model's answer now opens by saying LocalBit doesn't know it (a small model took the size-only estimate as real).
 - The home page shows how to ask by address, for agents that can only read pages.
 - Phone layout: the menu wraps and long addresses break instead of pushing the page off screen; a phone-width browser test checks every page.
+- Contributor experience: copy-paste commands for Mac/Linux (python3) and Windows; the result's page lists it immediately (link printed by the script); community count on the home and test pages; on Windows, AMD/Intel cards are detected and confirmed against LocalBit's card list.
 - Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
 
 ## 0.4.0 - 2026-11-26
