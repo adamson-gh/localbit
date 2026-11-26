@@ -13,3 +13,5 @@ __pycache__/
 *.pyc
 src/generated/
 bench/agent_eval.json
+bench/agent_eval*.log
+bench/gemma_pull.log
