@@ -140,7 +140,9 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const one = await c({ model: "llama 3.3", hardware: "rtx 3090" });
   check("a family with one known size: answered for that size, and says so", !one.isError && /Llama 3\.3 70B/.test(one.content[0].text) && /knows one size/.test(one.content[0].text), one.content[0].text.slice(0, 200));
   const many = await c({ model: "Qwen 2.5", hardware: "Rtx 4070" });
-  check("a family with several sizes: lists them and asks for one", many.isError && /comes in 4 sizes/.test(many.content[0].text) && many.structuredContent.sizes.length === 4, many.content[0].text); }
+  check("a family with several sizes: every size on the card at once, and the largest that fits", !many.isError && /knows 4 sizes/.test(many.content[0].text) && many.structuredContent.sizes.length === 4 && /Largest that fits: /.test(many.content[0].text), many.content[0].text);
+  const fp = await (await call("/check?model=qwen%202.5&hardware=rtx%204070")).text();
+  check("the web page for a family shows a table of sizes, each linked to its full answer", /<th>Size<\/th>/.test(fp) && /href="[^"]*\/check\?model=qwen2\.5-7b&amp;hardware=rtx-4070"|href="[^"]*\/check\?model=qwen2\.5-7b&hardware=rtx-4070"/.test(fp), fp.slice(fp.indexOf("<h1>"), fp.indexOf("<h1>") + 600)); }
 { for (const pth of ["/mcp/.well-known/glama.json", "/.well-known/glama.json"]) { const g = await (await call(pth)).json();
     check("Glama claim file at " + pth + ": the claim token, no email", g["$schema"].includes("glama.ai/mcp/schemas/connector.json") && /^glama_claim_/.test(g.claim) && !JSON.stringify(g).includes("@")); }
   const mj2 = await (await call("/.well-known/mcp.json")).json();
@@ -209,4 +211,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("/stats counts real questions without crawlers, monitoring probes or the owner's test", "real_questions" in j && "probe_calls" in j && "real_unknown" in j && /localbit-self-test/.test(real) && /probe/.test(real) && /ClaudeBot/.test(real), real.slice(0, 200));
   const unk = sqls.find(s => /verdict = 'unknown' OR model_id LIKE 'generic%'/.test(s)) || "";
   check("the old 'couldn't answer' list leaves out the owner's test too", /localbit-self-test/.test(unk)); }
+{ const [, jl] = await rpc({ jsonrpc: "2.0", id: 140, method: "tools/list" });
+  const cf = jl.result.tools.find(x => x.name === "check_fit").outputSchema.properties;
+  check("check_fit's output schema allows every basis it returns, and the family answer's fields", cf.basis.enum.includes("community") && cf.sizes && "largest_that_fits" in cf); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

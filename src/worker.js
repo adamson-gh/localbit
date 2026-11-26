@@ -45,8 +45,10 @@ const S = (props, extra = {}) => ({ type: "object", properties: props, ...extra 
 const OUT = {
   check_fit: S({ model: { type: "string" }, hardware: { type: "string" }, verdict: { type: "string", enum: ["fits", "tight", "does_not_fit"] },
     quant: { type: "string" }, context: { type: "integer" }, memory_gb: S({ weights: { type: "number" }, context_cache: { type: "number" }, overhead: { type: "number" }, total: { type: "number" }, available: { type: "number" } }),
-    gen_tokens_per_s: { type: "number" }, gen_tokens_per_s_range: { type: "array", items: { type: "number" } }, basis: { type: "string", enum: ["estimated", "measured"] },
-    measured: { type: ["object", "null"] }, suggestions: { type: "array", items: { type: "string" } }, source_url: { type: "string" }, data_as_of: S({ specs: { type: ["string", "null"] }, measured: { type: ["string", "null"] } }) }),
+    gen_tokens_per_s: { type: "number" }, gen_tokens_per_s_range: { type: "array", items: { type: "number" } }, basis: { type: "string", enum: ["estimated", "measured", "community"] },
+    measured: { type: ["object", "null"] }, community: { type: ["object", "null"], description: "Community-submitted measurement (unverified), when the node has none." },
+    sizes: { type: "array", description: "Only when a model family was asked without a size: each size on this hardware.", items: S({ id: { type: "string" }, name: { type: "string" }, params_b: { type: "number" }, verdict: { type: "string" }, memory_gb: { type: "number" }, gen_tokens_per_s: { type: "number" } }) },
+    largest_that_fits: { type: ["string", "null"] }, suggestions: { type: "array", items: { type: "string" } }, source_url: { type: "string" }, data_as_of: S({ specs: { type: ["string", "null"] }, measured: { type: ["string", "null"] } }) }),
   suggest_models: S({ hardware: { type: "string" }, models: { type: "array", items: S({ model: { type: "string" }, quant: { type: "string" }, memory_gb: { type: "number" }, gen_tokens_per_s: { type: "number" }, basis: { type: "string" } }) } }),
   compare: S({ a: { type: "object" }, b: { type: "object" }, a_node: { type: ["object", "null"] }, b_node: { type: ["object", "null"] } }),
   node_log: S({ readings: { type: "array", items: S({ model: { type: "string" }, date: { type: "string" }, gen_tps: { type: "number" }, quality_pct: { type: ["number", "null"] }, memory_gb: { type: "number" } }) } }),
@@ -129,8 +131,21 @@ function checkFit(args) {
   const m = findModel(args.model, DATA.models), g = findGpu(args.hardware, DATA.gpus);
   if (!m || !g) {
     const fam = !m ? familyOf(args.model, DATA.models) : [];
-    if (fam.length > 1 && g) return { error: true, text: `${args.model} comes in ${fam.length} sizes LocalBit knows: ${fam.map(x => x.name).join(", ")}. Ask again with the size, e.g. "${fam[0].name}".`,
-      data: { model_found: false, hardware_found: true, sizes: fam.map(x => ({ id: x.id, name: x.name, params_b: x.params_b })) }, log: { gpu_id: g.id, verdict: "needs_size" } };
+    // (Nov 26: "Qwen 2.5 on an RTX 4070" got "ask again with the size") answer every size at once and name the largest that fits
+    if (fam.length > 1 && g) {
+      const ctxN = Math.round(+args.context || 8192);
+      const rows = fam.map(x => ({ x, e: estimate({ ...x, matched: "known" }, g, { context: ctxN, quant: args.quant, kv_cache: args.kv_cache }, DATA.quants) }))
+        .sort((a, b) => a.x.params_b - b.x.params_b);
+      const fits = rows.filter(r => r.e.verdict !== "does_not_fit"), best = fits[fits.length - 1];
+      const label = { fits: "fits", tight: "just fits", does_not_fit: "doesn't fit" };
+      const text = [`${args.model} on ${g.name} (${rows[0].e.quant}, ${ctxN.toLocaleString("en-US")}-token context) - LocalBit knows ${fam.length} sizes:`,
+        ...rows.map(r => `- ${r.x.name}: ${label[r.e.verdict] || r.e.verdict}, about ${r.e.memory_gb.total} of ${r.e.memory_gb.available} GB, ~${r.e.gen_tokens_per_s} tokens/s${r.e.verdict === "does_not_fit" ? " (part on system memory)" : ""}`),
+        best ? `Largest that fits: ${best.x.name}.` : `None fits entirely - the smallest, ${rows[0].x.name}, needs about ${rows[0].e.memory_gb.total} GB.`,
+        "Estimates; ask with one size for the full answer.", asOfText()].join("\n");
+      return { text, data: { model_found: "family", hardware: g.name, hardware_id: g.id, context: ctxN,
+        sizes: rows.map(r => ({ id: r.x.id, name: r.x.name, params_b: r.x.params_b, verdict: r.e.verdict, memory_gb: r.e.memory_gb.total, gen_tokens_per_s: r.e.gen_tokens_per_s })),
+        largest_that_fits: best ? best.x.id : null, data_as_of: AS_OF }, log: { gpu_id: g.id, verdict: "family" } };
+    }
     const cm = !m ? closest(args.model, DATA.models) : [], cg = !g ? closest(args.hardware, DATA.gpus) : [];
     return { error: true, text: (!m ? `LocalBit doesn't know the model "${args.model}" yet.${cm.length ? " Closest known: " + cm.join(", ") + "." : ""} Add its size (like "17B") for an estimate, or call list_known for exact names. ` : "") +
       (!g ? `LocalBit doesn't know the hardware "${args.hardware}" yet.${cg.length ? " Closest known: " + cg.join(", ") + "." : ""} Give its memory (like "12 GB") for an estimate, or call list_known.` : ""),
@@ -533,6 +548,13 @@ function checkPage(sp, origin) {
   const out = checkFit(sp);
   if (out.error) return page("LocalBit - not found", `<h1>Not recognized</h1><div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}<p class="small">${esc(out.text)}</p></div>`, origin);
   const d = out.data;
+  if (d.sizes) {   // a family asked without a size: every size on this card, each linking to its full answer
+    const lab = { fits: "Fits", tight: "Just fits", does_not_fit: "Doesn't fit" };
+    return page(`${sp.model} sizes on ${d.hardware} - LocalBit`, `<h1>${esc(sp.model)} on ${esc(d.hardware)}</h1><p class="small">${esc(out.text.split("\n")[0].replace(/^.*? \(/, "(").replace(/ - LocalBit knows.*$/, ""))}</p>
+<div class="card scroll"><table><tr><th>Size</th><th>Fit</th><th>Memory</th><th>Speed</th></tr>${d.sizes.map(z => `<tr><td><a href="${origin}/check?model=${encodeURIComponent(z.id)}&hardware=${encodeURIComponent(d.hardware_id)}">${esc(z.name)}</a></td><td>${lab[z.verdict] || esc(z.verdict)}</td><td>${z.memory_gb} GB</td><td>~${z.gen_tokens_per_s} tokens/s</td></tr>`).join("")}</table>
+<p class="small" style="margin-bottom:0">${esc(out.text.split("\n").find(l => /^(Largest|None)/.test(l)) || "")} Estimates - pick a size for the full answer.</p></div>
+<div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}</div>`, origin);
+  }
   return page(`Can ${d.model} run on ${d.hardware}? - LocalBit`, `<h1>${esc(d.model)} on ${esc(d.hardware)}</h1>${resultCard(out)}
 <div class="card">${askBox(origin, sp.model || "", sp.hardware || "")}</div>`, origin);
 }
