@@ -5,19 +5,22 @@ import json, os, subprocess, sys, tempfile, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
-posted = []
+posted = []; unloaded = []; STATE = {"other_loaded": False}
 class O(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _j(self, o):
         b = json.dumps(o).encode(); self.send_response(200); self.send_header("content-type", "application/json"); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
-        if self.path == "/api/tags": return self._j({"models": [{"name": "made-up:7b"}]})
+        if self.path == "/api/tags": return self._j({"models": [{"name": "made-up:7b"}, {"name": "nomic-embed-text:latest"}, {"name": "broken:1b"}]})
         if self.path == "/api/version": return self._j({"version": "0.0-test"})
-        if self.path == "/api/ps": return self._j({"models": [{"name": "made-up:7b", "size": 5 * 2**30, "size_vram": 5 * 2**30}]})
+        if self.path == "/api/ps": return self._j({"models": [{"name": "made-up:7b", "size": 5 * 2**30, "size_vram": 5 * 2**30}] + ([{"name": "other:3b", "size": 3 * 2**30, "size_vram": 3 * 2**30}] if STATE["other_loaded"] else [])})
         self._j({})
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["content-length"])) or b"{}")
-        if self.path == "/api/show": return self._j({"details": {"quantization_level": "Q4_K_M"}, "capabilities": ["completion"]})
+        if self.path == "/api/show": return self._j({"details": {"quantization_level": "Q4_K_M"}, "capabilities": ["embedding"] if "embed" in body.get("model", "") else ["completion"]})
+        if self.path == "/api/generate" and body.get("keep_alive") == 0: unloaded.append(body["model"]); STATE["other_loaded"] = False; return self._j({"done": True})
+        if self.path == "/api/generate" and body.get("model") == "broken:1b":
+            self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"model runner crashed"}'); return
         if self.path == "/api/generate": return self._j({"eval_count": 256, "eval_duration": int(4e9), "prompt_eval_count": 4000, "prompt_eval_duration": int(2e9)})
         if self.path == "/api/submit": posted.append(body); return self._j({"answer": "Thank you - recorded (made-up)."})
         self._j({})
@@ -40,6 +43,19 @@ p = posted[0] if posted else {}
 check("only the listed fields are sent - no names, paths or addresses", set(p) <= {"recipe_version", "model", "quant", "hardware", "memory_gb", "cards", "runtime", "os", "results", "client"}
       and not any(x in json.dumps(p) for x in (os.path.expanduser("~"), os.environ.get("USERNAME", "@@"), os.environ.get("USER", "@@"), "127.0.0.1")), p)
 check("results: both recipe contexts, prompt speed at 16K, on-card flag", [x["context"] for x in p.get("results", [])] == [4096, 16384] and p["results"][1].get("prompt_tps") == 2000.0 and p["results"][0].get("all_on_gpu") is True, p.get("results"))
+r = subprocess.run([sys.executable, script, "--dry-run"], env=env, input="1\n", capture_output=True, text=True, timeout=120)
+check("the model list leaves out embedding models (they can't be measured)", "nomic-embed-text" not in r.stdout and "made-up:7b" in r.stdout and "broken:1b" in r.stdout, r.stdout[:300])
+r = subprocess.run([sys.executable, script, "--model", "broken:1b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+check("a model Ollama can't run: a plain sentence, no traceback", r.returncode == 1 and "couldn't run this model (error 500)" in r.stdout and "Traceback" not in r.stdout + r.stderr, (r.stdout[-300:], r.stderr[-300:]))
+STATE["other_loaded"] = True
+
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+check("another loaded model is named; without a terminal nothing is unloaded unasked", "Also loaded in Ollama, sharing the card's memory: other:3b (3.0 GB)" in r.stdout and "Not unloading" in r.stdout and not unloaded, r.stdout[:400])
+import importlib.util as _iu
+_sp = _iu.spec_from_file_location("lbt2", script); lbt2 = _iu.module_from_spec(_sp); _sp.loader.exec_module(lbt2)
+lbt2.OLLAMA = url
+lbt2.free_card("made-up:7b", ask=lambda q: "")
+check("asked and answered yes (Enter): the other model is unloaded", unloaded == ["other:3b"], unloaded)
 srv.shutdown()
 # the community publisher: only plausible rows, middle value, count
 tmp = Path(tempfile.mkdtemp())

@@ -13,6 +13,7 @@
 - Suggest page (/suggest, linked in every footer): one box, no email; stored with reports as "suggestion", links and emails removed, bots caught by a hidden field.
 - Owner stats: real questions counted apart from monitoring probes, crawlers and the owner's own test; unknown models/cards from real callers listed separately from size-only answers.
 - A model family asked without a size ("Qwen 2.5 on an RTX 4070") gets every size at once and the largest that fits, instead of "ask again"; check_fit's output schema now lists the community basis.
+- Test script (from the owner's own run): embedding models left out of the list; a model Ollama can't run gets a plain message, not a traceback; other loaded models are named and can be unloaded first (the node measures with nothing else loaded); the model is loaded before timing; the Windows line runs from the temp folder.
 - Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
 
 ## 0.4.0 - 2026-11-26

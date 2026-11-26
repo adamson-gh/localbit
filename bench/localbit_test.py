@@ -10,7 +10,7 @@ What it does: talks to your local Ollama (http://127.0.0.1:11434) only, runs the
 reads your graphics card's or Mac's name and memory size. Before anything leaves your computer it prints exactly what would be
 sent and asks. It never sends names, usernames, file paths, IP addresses, hostnames or serial numbers. Python 3.8+, nothing to
 install. Source: https://github.com/adamson-gh/localbit (MIT)."""
-import json, os, platform, re, statistics, subprocess, sys, time, urllib.request
+import json, os, platform, re, statistics, subprocess, sys, time, urllib.error, urllib.request
 
 SITE = os.environ.get("LOCALBIT_SITE", "https://localbit.adamson-cf.workers.dev")
 OLLAMA = os.environ.get("LOCALBIT_OLLAMA", "http://127.0.0.1:11434")
@@ -119,7 +119,62 @@ def gen(model, prompt, ctx, predict, thinks):
     return r
 
 
+def text_models(tags):
+    """(Nov 26, owner's own run: an embedding model in the list failed with a 400) only models that write text can be measured."""
+    out = []
+    for t in tags:
+        try:
+            caps = http(OLLAMA + "/api/show", {"model": t}, timeout=30).get("capabilities")
+        except Exception:
+            caps = None
+        if caps is not None and "completion" not in caps:
+            continue
+        if caps is None and re.search(r"(?i)embed", t):
+            continue
+        out.append(t)
+    return out
+
+
+def free_card(model, ask=input):
+    """(Nov 26, owner's own run: a model already loaded shared the card and the first context ran at a sixth of its speed) the node
+    measures with nothing else loaded - offer to unload the others (they reload the next time they're used)."""
+    try:
+        others = [m for m in http(OLLAMA + "/api/ps", timeout=10).get("models", []) if m.get("name") != model]
+    except Exception:
+        return
+    if not others:
+        return
+    names = ", ".join("%s (%.1f GB)" % (m["name"], m.get("size", 0) / 2**30) for m in others)
+    print("Also loaded in Ollama, sharing the card's memory: %s." % names)
+    if not sys.stdin.isatty() and ask is input:
+        print("(Not unloading them - numbers may come out low.)\n"); return
+    if ask("Unload them for a fair test? They load again the next time you use them. [Y/n] ").strip().lower() in ("", "y", "yes"):
+        for m in others:
+            try:
+                http(OLLAMA + "/api/generate", {"model": m["name"], "keep_alive": 0}, timeout=60)
+            except Exception:
+                pass
+        print("Unloaded.\n")
+
+
 def main():
+    try:
+        return run()
+    except urllib.error.HTTPError as e:   # (Nov 26) a model Ollama can't run: say so plainly, no traceback
+        print("\nOllama couldn't run this model (error %d). It may not be a text model, or it crashed - try another one. Nothing was sent." % e.code)
+        return 1
+    except urllib.error.URLError:
+        print("\nLost contact with Ollama at %s - is it still running? Nothing was sent." % OLLAMA)
+        return 1
+    except RuntimeError as e:
+        print("\nOllama reported a problem with this model: %s. Try another one. Nothing was sent." % str(e)[:200])
+        return 1
+    except KeyboardInterrupt:
+        print("\nStopped. Nothing was sent.")
+        return 1
+
+
+def run():
     args = sys.argv[1:]
     dry = "--dry-run" in args
     model = args[args.index("--model") + 1] if "--model" in args else None
@@ -130,11 +185,14 @@ def main():
     if not tags:
         print("Ollama has no models yet - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
     if not model:
+        tags = text_models(tags)
+        if not tags:
+            print("None of your Ollama models write text (embedding models can't be measured) - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
         for i, t in enumerate(tags, 1):
             print("%2d. %s" % (i, t))
         pick = input("Which model to test (number)? ").strip()
         model = tags[int(pick) - 1] if pick.isdigit() and 0 < int(pick) <= len(tags) else tags[0]
-    if model not in tags:
+    if model not in tags and model not in [m["name"] for m in http(OLLAMA + "/api/tags", timeout=10).get("models", [])]:
         print("%s isn't in Ollama on this machine." % model); return 2
     R = recipe()
     show = http(OLLAMA + "/api/show", {"model": model}, timeout=30)
@@ -147,12 +205,14 @@ def main():
         ver = http(OLLAMA + "/api/version", timeout=10).get("version")
     except Exception:
         ver = None
+    free_card(model)
     print("\nTesting %s on %s - about 3 minutes. Close other heavy programs for a fair result.\n" % (model, hw["hardware"]))
     G = next(t for t in R["tests"] if t["name"] == "gen")
     P = next(t for t in R["tests"] if t["name"] == "prompt_4k")
     results = []
     for ctx in R["contexts"]:
         speeds = []
+        gen(model, "Hi", ctx, 1, thinks)   # load the model at this context first, so loading isn't measured
         for i in range(G["runs"]):
             r = gen(model, G["prompt"], ctx, G["num_predict"], thinks)
             if r.get("eval_duration"):
