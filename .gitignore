@@ -9,3 +9,5 @@ bench/pulled.json
 _to_delete/
 backups/
 bench/status.json
+__pycache__/
+*.pyc

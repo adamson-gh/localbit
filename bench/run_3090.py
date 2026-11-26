@@ -295,7 +295,7 @@ NOW = "--now" in sys.argv
 
 def main():
     maxm = int(sys.argv[sys.argv.index("--max-models") + 1]) if "--max-models" in sys.argv else 3
-    approved = [l.strip() for l in (HERE / "approved.txt").read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
+    approved = [l.strip() for l in Path(os.environ.get("LOCALBIT_APPROVED", HERE / "approved.txt")).read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
     ver = versions()
     todo = [m for m in approved if not (done_recently(m, ver=ver) and done_recently(m, test="quiz"))]
     for m in [m for m in todo if recent_failures(m) >= 2]:

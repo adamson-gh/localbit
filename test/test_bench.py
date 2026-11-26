@@ -26,13 +26,9 @@ class H(BaseHTTPRequestHandler):
 srv = HTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 tmp = Path(tempfile.mkdtemp())
 bench = ROOT / "bench"
-approved_bak = (bench / "approved.txt").read_text(encoding="utf-8")
-(bench / "approved.txt").write_text("made-up:7b\n", encoding="utf-8")
-env = dict(os.environ, LOCALBIT_OLLAMA="http://127.0.0.1:%d" % srv.server_port, LOCALBIT_RUNS=str(tmp / "runs.jsonl"), LOCALBIT_PULLED=str(tmp / "pulled.json"), LOCALBIT_BUSY_LOG=str(tmp / "no-access.log"))
-try:
-    r = subprocess.run([sys.executable, str(bench / "run_3090.py"), "--now", "--max-models", "1"], env=env, capture_output=True, text=True, timeout=120)
-finally:
-    (bench / "approved.txt").write_text(approved_bak, encoding="utf-8")
+(tmp / "approved.txt").write_text("made-up:7b\n", encoding="utf-8")   # (Nov 26) a temp list - the real approved.txt is never touched
+env = dict(os.environ, LOCALBIT_OLLAMA="http://127.0.0.1:%d" % srv.server_port, LOCALBIT_RUNS=str(tmp / "runs.jsonl"), LOCALBIT_PULLED=str(tmp / "pulled.json"), LOCALBIT_BUSY_LOG=str(tmp / "no-access.log"), LOCALBIT_APPROVED=str(tmp / "approved.txt"))
+r = subprocess.run([sys.executable, str(bench / "run_3090.py"), "--now", "--max-models", "1"], env=env, capture_output=True, text=True, timeout=120)
 ok = bad = 0
 def check(name, cond, got=""):
     global ok, bad
