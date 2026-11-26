@@ -75,26 +75,26 @@ def hardware():
     """The card or Mac name and memory only - read from nvidia-smi / rocm-smi / macOS system info. Nothing else."""
     if os.environ.get("LOCALBIT_FAKE_GPU"):
         name, mem, n = os.environ["LOCALBIT_FAKE_GPU"].split("|")
-        return {"hardware": name, "memory_gb": float(mem), "cards": int(n)}
+        return {"hardware": name, "memory_gb": float(mem), "cards": int(n), "via": "test settings"}
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=15).stdout.strip().splitlines()
         if out:
             names = [l.split(",")[0].strip() for l in out]; mem = round(float(out[0].split(",")[1]) / 1024, 1)
-            return {"hardware": names[0], "memory_gb": mem, "cards": len(names)}
+            return {"hardware": names[0], "memory_gb": mem, "cards": len(names), "via": "nvidia-smi"}
     except Exception:
         pass
     if platform.system() == "Darwin":
         try:
             chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=10).stdout.strip()
             mem = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=10).stdout.strip()) / 2**30
-            return {"hardware": "%s %d GB" % (chip, round(mem)), "memory_gb": round(mem), "cards": 1}
+            return {"hardware": "%s %d GB" % (chip, round(mem)), "memory_gb": round(mem), "cards": 1, "via": "macOS system info"}
         except Exception:
             pass
     try:
         out = subprocess.run(["rocm-smi", "--showproductname"], capture_output=True, text=True, timeout=15).stdout
         m = re.search(r"Card (?:series|SKU)\s*:\s*(.+)", out)
         if m:
-            return {"hardware": m.group(1).strip(), "memory_gb": None, "cards": 1}
+            return {"hardware": m.group(1).strip(), "memory_gb": None, "cards": 1, "via": "rocm-smi"}
     except Exception:
         pass
     if platform.system() == "Windows":   # AMD and Intel cards on Windows: the name Windows shows in Device Manager (its memory figure isn't reliable)
@@ -102,10 +102,10 @@ def hardware():
             out = subprocess.run(["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_VideoController).Name"], capture_output=True, text=True, timeout=20).stdout
             names = [l.strip() for l in out.splitlines() if l.strip() and not re.search(r"(?i)basic|virtual|remote|parsec|meta", l)]
             if names:
-                return {"hardware": names[0], "memory_gb": None, "cards": 1, "unsure": True}
+                return {"hardware": names[0], "memory_gb": None, "cards": 1, "unsure": True, "via": "Windows' device list"}
         except Exception:
             pass
-    return {"hardware": input("Graphics card or Mac (e.g. 'RTX 4060' or 'M2 Pro 32 GB'): ").strip(), "memory_gb": None, "cards": 1}
+    return {"hardware": input("Graphics card or Mac (e.g. 'RTX 4060' or 'M2 Pro 32 GB'): ").strip(), "memory_gb": None, "cards": 1, "via": "typed"}
 
 
 def gen(model, prompt, ctx, predict, thinks):
@@ -197,62 +197,154 @@ def main():
         return 1
 
 
+# ---------- what the person sees (Nov 26, owner: "Add some transparency. Show what it's doing. Give the user an experience.") ----------
+TTY = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+if TTY and os.name == "nt":   # let Windows consoles show colours
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32; h = k.GetStdHandle(-11); mode = ctypes.c_uint32()
+        if k.GetConsoleMode(h, ctypes.byref(mode)):
+            k.SetConsoleMode(h, mode.value | 4)
+    except Exception:
+        pass
+
+
+def _can(s):
+    try:
+        s.encode(sys.stdout.encoding or "ascii"); return True
+    except (UnicodeEncodeError, LookupError):
+        return False
+
+
+FANCY = TTY and _can("▕█░✓·─")
+OK, DOT, LINE, FULL, EMPTY = ("✓", "·", "─", "█", "░") if FANCY else ("ok", "-", "-", "#", ".")
+
+
+def c(code, s):
+    return "\033[%sm%s\033[0m" % (code, s) if TTY else s
+
+
+bold, dim, green, yellow = (lambda s: c("1", s)), (lambda s: c("2", s)), (lambda s: c("32", s)), (lambda s: c("33", s))
+
+
+def step(n, title, value="", note=""):
+    print("\n %s  %s %s%s" % (bold(str(n)), bold("%-15s" % title), value, ("   " + dim(note)) if note else ""), flush=True)
+
+
+def say(s="", note=""):
+    print("    " + s + (("   " + dim(note)) if note else ""), flush=True)
+
+
+def gb(n):
+    return "%.1f GB" % (n / 2**30)
+
+
+def gen_live(model, prompt, ctx, predict, thinks, label):
+    """One timed run, streamed so the person watches it write: a bar fills as tokens arrive; the speed is Ollama's own timing."""
+    body = {"model": model, "prompt": prompt, "stream": True, "keep_alive": "10m",
+            "options": {"num_ctx": ctx, "num_predict": predict, "temperature": 0, "seed": 7}}
+    if thinks:
+        body["think"] = False
+    req = urllib.request.Request(OLLAMA + "/api/generate", json.dumps(body).encode(), {"content-type": "application/json", "user-agent": "localbit-test/" + VERSION})
+    n, t0, final, width = 0, time.time(), {}, 24
+    with urllib.request.urlopen(req, timeout=900) as r:
+        for line in r:
+            if not line.strip():
+                continue
+            j = json.loads(line.decode())
+            if j.get("error"):
+                raise RuntimeError(j["error"])
+            if j.get("response") or j.get("thinking"):
+                n += 1
+                if TTY and n % 4 == 0:
+                    el = max(time.time() - t0, 1e-3); fill = min(width, int(width * n / max(predict, 1)))
+                    print("\r    %s  %s%s  %3d tokens  %5.1f tokens/s " % (label, FULL * fill, EMPTY * (width - fill), n, n / el), end="", flush=True)
+            if j.get("done") or "eval_count" in j:
+                final = j
+    tps = final["eval_count"] / (final["eval_duration"] / 1e9) if final.get("eval_duration") else None
+    bar = FULL * width
+    line = "    %s  %s  %3d tokens  %s" % (label, bar if FANCY else "", final.get("eval_count") or n, bold("%5.1f tokens/s" % tps) if tps else "no timing")
+    print(("\r" if TTY else "") + line + " " * 4, flush=True)
+    return tps, final
+
+
 def run():
     args = sys.argv[1:]
     dry = "--dry-run" in args
     model = args[args.index("--model") + 1] if "--model" in args else None
-    try:
-        tags = [m["name"] for m in http(OLLAMA + "/api/tags", timeout=10).get("models", [])]
-    except Exception:
-        print("Couldn't reach Ollama at %s - is it running?" % OLLAMA); return 2
-    if not tags:
-        print("Ollama has no models yet - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
-    if not model:
-        tags = text_models(tags)
-        if not tags:
-            print("None of your Ollama models write text (embedding models can't be measured) - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
-        for i, t in enumerate(tags, 1):
-            print("%2d. %s" % (i, t))
-        pick = input("Which model to test (number)? ").strip()
-        model = tags[int(pick) - 1] if pick.isdigit() and 0 < int(pick) <= len(tags) else tags[0]
-    if model not in tags and model not in [m["name"] for m in http(OLLAMA + "/api/tags", timeout=10).get("models", [])]:
-        print("%s isn't in Ollama on this machine." % model); return 2
-    R = recipe()
-    show = http(OLLAMA + "/api/show", {"model": model}, timeout=30)
-    thinks = "thinking" in (show.get("capabilities") or [])
-    quant = (show.get("details") or {}).get("quantization_level")
+    t_start = time.time()
+    print("\n " + bold("LocalBit") + "  " + "measure your hardware")
+    print(" " + dim("Same recipe as LocalBit's RTX 3090 node. Talks only to your own Ollama; nothing is sent unless you say yes at the end."))
+    print(" " + dim(LINE * 72))
     hw = hardware()
     if not os.environ.get("LOCALBIT_FAKE_GPU"):
         hw = settle(hw)
+    step(1, "Your hardware", "%s%s%s" % (hw["hardware"], (" %s %s GB" % (DOT, ("%g" % hw["memory_gb"]))) if hw.get("memory_gb") else "", (" x%d" % hw["cards"]) if hw.get("cards", 1) > 1 else ""),
+         "read with %s" % hw.get("via", "?"))
+    try:
+        tag_rows = http(OLLAMA + "/api/tags", timeout=10).get("models", [])
+    except Exception:
+        print("\nCouldn't reach Ollama at %s - is it running?" % OLLAMA); return 2
+    sizes = {m["name"]: m.get("size", 0) for m in tag_rows}
+    tags = [m["name"] for m in tag_rows]
     try:
         ver = http(OLLAMA + "/api/version", timeout=10).get("version")
     except Exception:
         ver = None
+    if not tags:
+        print("\nOllama has no models yet - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
+    texts = text_models(tags)
+    step(2, "Ollama", "version %s %s %d text model%s" % (ver or "?", DOT, len(texts), "" if len(texts) == 1 else "s"),
+         ("%d embedding model%s left out - they can't write text" % (len(tags) - len(texts), "" if len(tags) - len(texts) == 1 else "s")) if len(tags) > len(texts) else "")
+    if not model:
+        if not texts:
+            print("\nNone of your Ollama models write text (embedding models can't be measured) - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
+        for i, t in enumerate(texts, 1):
+            say("%2d. %-28s %s" % (i, t, dim(gb(sizes.get(t, 0)) if sizes.get(t) else "")))
+        pick = input("    Which model to test (number)? ").strip()
+        model = texts[int(pick) - 1] if pick.isdigit() and 0 < int(pick) <= len(texts) else texts[0]
+    if model not in tags:
+        print("\n%s isn't in Ollama on this machine." % model); return 2
+    R = recipe()
+    show = http(OLLAMA + "/api/show", {"model": model}, timeout=30)
+    thinks = "thinking" in (show.get("capabilities") or [])
+    det = show.get("details") or {}
+    quant = det.get("quantization_level")
+    G = next(t for t in R["tests"] if t["name"] == "gen")
+    P = next(t for t in R["tests"] if t["name"] == "prompt_4k")
+    step(3, "Getting ready", "%s %s %s%s" % (model, DOT, det.get("parameter_size") or "", (" %s %s" % (DOT, quant)) if quant else ""),
+         "%d contexts x %d runs of %d tokens, plus one long document" % (len(R["contexts"]), G["runs"], G["num_predict"]))
     free_card(model)
     # (Nov 26 diagnostic: the model was already loaded by another program on the processor only, and a test at the same context
     # reused that copy - 25 instead of 150 tokens/s) start from a fresh load, as the node does; it reloads on its own when next used
     unload(model)
-    print("\nTesting %s on %s - about 3 minutes. Close other heavy programs for a fair result.\n" % (model, hw["hardware"]))
-    G = next(t for t in R["tests"] if t["name"] == "gen")
-    P = next(t for t in R["tests"] if t["name"] == "prompt_4k")
-    results = []
+    say("Starting from a fresh copy of the model, so every run is measured the same way", OK)
+    results, n = [], 4
     for ctx in R["contexts"]:
-        speeds = []
+        step(n, "Writing speed", "%s-token context" % format(ctx, ","), "how many tokens a second it writes - the speed you feel in a chat" if ctx == R["contexts"][0] else "a longer conversation's worth of room"); n += 1
+        t0 = time.time()
         gen(model, "Hi", ctx, 1, thinks)   # load the model at this context first, so loading isn't measured
-        if on_card(model) is False:   # still the processor copy (or it doesn't fit): reload once and look again
-            unload(model); gen(model, "Hi", ctx, 1, thinks)
-            if on_card(model) is False:
-                print("  (at %d context the model doesn't fit fully in the card's memory - this is the real speed for your hardware)" % ctx)
+        where = on_card(model)
+        if where is False:   # still the processor copy (or it doesn't fit): reload once and look again
+            unload(model); gen(model, "Hi", ctx, 1, thinks); where = on_card(model)
+        say("Loaded in %.1f s %s %s" % (time.time() - t0, DOT, green("fully in the card's memory " + OK) if where else
+                                       (yellow("partly in system memory - slower, and the real speed for this setup") if where is False else "placement not reported")))
+        speeds = []
         for i in range(G["runs"]):
-            r = gen(model, G["prompt"], ctx, G["num_predict"], thinks)
-            if r.get("eval_duration"):
-                speeds.append(r["eval_count"] / (r["eval_duration"] / 1e9))
-            print("  context %d, run %d: %.1f tokens/s" % (ctx, i + 1, speeds[-1] if speeds else 0))
+            tps, _ = gen_live(model, G["prompt"], ctx, G["num_predict"], thinks, "run %d" % (i + 1))
+            if tps:
+                speeds.append(tps)
         row = {"context": ctx, "gen_tps": round(statistics.median(speeds), 2) if speeds else None}
+        if speeds:
+            say("Middle of %d runs: %s %s about %d words a second" % (len(speeds), bold("%.1f tokens/s" % row["gen_tps"]), DOT, round(row["gen_tps"] * 0.75)),
+                "people read about 4" if ctx == R["contexts"][0] else "")
         if ctx in P.get("contexts", []):
+            step(n, "Reading speed", "a %s-word document" % format(int(round(P["repeat"] * len(P["prompt_repeat"].split()), -2)), ","),
+                 "how fast it takes in what you give it - long files, chat history"); n += 1
             r = gen(model, P["prompt_repeat"] * P["repeat"] + P["suffix"], ctx, P["num_predict"], thinks)
             if r.get("prompt_eval_duration"):
                 row["prompt_tps"] = round(r["prompt_eval_count"] / (r["prompt_eval_duration"] / 1e9), 1)
+                say("%s %s waits %.1f s before the first word" % (bold("%s tokens/s" % format(int(row["prompt_tps"]), ",")), DOT, r["prompt_eval_count"] / row["prompt_tps"]))
         try:
             ps = next((m for m in http(OLLAMA + "/api/ps", timeout=10).get("models", []) if m["name"] == model), None)
             if ps:
@@ -261,21 +353,33 @@ def run():
         except Exception:
             pass
         results.append(row)
+    took = time.time() - t_start
+    print("\n " + dim(LINE * 72))
+    print(" " + bold("Your results") + "  " + dim("%s on %s %s took %d min %02d s" % (model, hw["hardware"], DOT, took // 60, took % 60)))
+    for r in results:
+        say("%-16s %s%s%s" % ("%s context" % format(r["context"], ","), bold("%.1f tokens/s" % r["gen_tps"]) if r.get("gen_tps") else "-",
+                              ("   reading %s tokens/s" % format(int(r["prompt_tps"]), ",")) if r.get("prompt_tps") else "",
+                              "" if r.get("all_on_gpu") in (True, None) else yellow("   partly in system memory")))
     sub = {"recipe_version": R.get("recipe_version"), "model": model, "quant": quant, "hardware": hw["hardware"], "memory_gb": hw["memory_gb"],
            "cards": hw["cards"], "runtime": "Ollama " + str(ver or "?"), "os": platform.system(), "results": results, "client": "localbit-test/" + VERSION}
-    print("\nThis is everything that would be sent to LocalBit:\n")
-    print(json.dumps(sub, indent=1))
+    print("\n " + bold("This is everything that would be sent to LocalBit:") + "  " + dim("no names, paths, addresses or serial numbers\n"))
+    print("\n".join("    " + l for l in json.dumps(sub, indent=1).splitlines()))
     if dry:
         print("\n(--dry-run: nothing sent.)"); return 0
-    if input("\nShare these numbers with LocalBit? They become public, anonymous open data. [y/N] ").strip().lower() not in ("y", "yes"):
-        print("Not sent. Thanks for testing!"); return 0
+    if input("\n Share these numbers with LocalBit? They become public, anonymous open data. [y/N] ").strip().lower() not in ("y", "yes"):
+        print(" Not sent. Thanks for testing!"); return 0
     try:
         ans = http(SITE + "/api/submit", sub, timeout=30)
-        print("\n" + ans.get("answer", json.dumps(ans)))
-        if ans.get("url"):
-            print("\nYour result: %s\n(Share it if you like - it helps the next person with your hardware decide to test too.)" % ans["url"])
     except Exception as e:
-        print("Couldn't send (%s) - nothing was shared." % type(e).__name__); return 1
+        print(" Couldn't send (%s) - nothing was shared." % type(e).__name__); return 1
+    print("\n " + ans.get("answer", json.dumps(ans)))
+    for r in ans.get("rows") or []:   # how the result compares with what LocalBit predicted
+        if r.get("est_tps") and r.get("gen_tps"):
+            d = 100 * (r["gen_tps"] - r["est_tps"]) / r["est_tps"]
+            say("%s context: you measured %.1f, LocalBit estimated %.1f %s %s" % (format(r["context"], ","), r["gen_tps"], r["est_tps"], DOT,
+                "spot on" if abs(d) < 5 else ("%d%% %s than estimated" % (abs(d), "faster" if d > 0 else "slower"))))
+    if ans.get("url"):
+        print("\n Your result: %s\n %s" % (bold(ans["url"]), dim("Share it if you like - it helps the next person with your hardware decide to test too.")))
     return 0
 
 
