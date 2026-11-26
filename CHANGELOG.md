@@ -11,6 +11,7 @@
 - New title, "Local AI models, checked against your hardware"; shorter copy across pages; result pages titled "<model> on <card>" (the question form stays in page titles for search).
 - Test page: one copyable line for the visitor's own system, short script address /t.py, "ask your AI assistant" option (agents run --dry-run, show the user, then submit_result).
 - Suggest page (/suggest, linked in every footer): one box, no email; stored with reports as "suggestion", links and emails removed, bots caught by a hidden field.
+- Owner stats: real questions counted apart from monitoring probes, crawlers and the owner's own test; unknown models/cards from real callers listed separately from size-only answers.
 - Fresh-agent test: 14 questions, graded against LocalBit's own numbers; runs nightly.
 
 ## 0.4.0 - 2026-11-26

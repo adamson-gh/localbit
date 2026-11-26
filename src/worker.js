@@ -25,6 +25,9 @@ const CRAWLERS = ["ClaudeBot", "Claude-SearchBot", "GPTBot", "OAI-SearchBot", "G
 // (Nov 26) the owner's own fresh-agent test (bench/agent_eval.py) - left out of visitor counts, counted on its own
 const SELF_UA = "localbit-self-test";
 const NOT_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') NOT LIKE '%${c}%'`).join(" AND ") + ` AND coalesce(ua, '') NOT LIKE '%${SELF_UA}%')`;
+// (Nov 26, owner's flag on the Agents page: "what information is useful for me to act on") monitoring bots that ping every
+// MCP server (registry probes, uptime checkers) - counted apart from real questions
+const PROBE_SQL = "(" + ["probe", "monitor", "mcpbeat", "sentinel", "uptime", "healthcheck", "statuscake", "pingdom"].map(w => `lower(coalesce(client, '') || ' ' || coalesce(ua, '')) LIKE '%${w}%'`).join(" OR ") + ")";
 const IS_CRAWL = "(" + CRAWLERS.map(c => `coalesce(ua, '') LIKE '%${c}%'`).join(" OR ") + ")";
 // paths only scanners ask for (looking for weak websites) - counted, but told apart from addresses an agent might expect
 const SCANNER_SQL = "(path LIKE '%wp-%' OR path LIKE '%.php%' OR path LIKE '%.env%' OR path LIKE '%.git%' OR path LIKE '%admin%' OR path LIKE '%phpmyadmin%' OR path LIKE '%.asp%' OR path LIKE '%cgi-bin%' OR path LIKE '%.sql%' OR path LIKE '%config%' OR path LIKE '%backup%' OR path LIKE '%.bak%' OR path LIKE '%xmlrpc%')";
@@ -757,9 +760,14 @@ async function stats(request, env) {
     self_tests: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND ua LIKE '%${SELF_UA}%'`).catch(() => [{ n: 0 }]))[0]?.n || 0,
     crawlers: await q(`SELECT ua crawler, count(*) n FROM calls WHERE ts >= ? AND ${IS_CRAWL} GROUP BY ua ORDER BY n DESC LIMIT 15`),
     crawl_total: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND ${IS_CRAWL}`))[0]?.n || 0,
-    by_tool: await q("SELECT tool, count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL GROUP BY tool ORDER BY n DESC"),
-    top_models: await q(`SELECT coalesce(model_id, model_q) model, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (model_id IS NOT NULL OR model_q IS NOT NULL) GROUP BY model ORDER BY n DESC LIMIT 25`),
-    top_hardware: await q(`SELECT coalesce(gpu_id, hw_q) hardware, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (gpu_id IS NOT NULL OR hw_q IS NOT NULL) GROUP BY hardware ORDER BY n DESC LIMIT 25`),
+    by_tool: await q(`SELECT tool, count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} GROUP BY tool ORDER BY n DESC`),
+    real_questions: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL AND ${NOT_CRAWL} AND NOT ${PROBE_SQL}`).catch(() => [{ n: 0 }]))[0]?.n || 0,
+    real_by_day: await q(`SELECT substr(ts,1,10) day, count(*) n FROM calls WHERE ts >= ? AND tool IS NOT NULL AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} GROUP BY day ORDER BY day`).catch(() => []),
+    probe_calls: (await q(`SELECT count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND ${PROBE_SQL}`).catch(() => [{ n: 0 }]))[0]?.n || 0,
+    real_unknown: await q(`SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND verdict = 'unknown' AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 15`).catch(() => []),
+    real_size_only: await q(`SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND (model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 15`).catch(() => []),
+    top_models: await q(`SELECT coalesce(model_id, model_q) model, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} AND (model_id IS NOT NULL OR model_q IS NOT NULL) GROUP BY model ORDER BY n DESC LIMIT 25`),
+    top_hardware: await q(`SELECT coalesce(gpu_id, hw_q) hardware, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND NOT ${PROBE_SQL} AND (gpu_id IS NOT NULL OR hw_q IS NOT NULL) GROUP BY hardware ORDER BY n DESC LIMIT 25`),
     errors_total: (await q("SELECT count(*) n FROM errors WHERE ts >= ?").catch(() => [{ n: null }]))[0]?.n,
     recent_errors: await q("SELECT ts, path, tool, message FROM errors WHERE ts >= ? ORDER BY ts DESC LIMIT 15").catch(() => []),
     limited_total: (await q("SELECT count(*) n FROM calls WHERE ts >= ? AND kind = 'limited'"))[0]?.n || 0,
@@ -776,7 +784,7 @@ async function stats(request, env) {
       WHEN path LIKE '/.well-known/%' THEN 'other well-known file' ELSE NULL END format, count(*) n FROM misses WHERE ts >= ? GROUP BY format HAVING format IS NOT NULL ORDER BY n DESC`).catch(() => []),
     reports_by_problem: await q("SELECT problem, count(*) n FROM reports WHERE ts >= ? GROUP BY problem ORDER BY n DESC").catch(() => []),
     recent_reports: await q("SELECT ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note FROM reports WHERE ts >= ? ORDER BY ts DESC LIMIT 25").catch(() => []),
-    unknown_asks: await q("SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND (verdict = 'unknown' OR model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 25"),
+    unknown_asks: await q(`SELECT model_q, hw_q, count(*) n FROM calls WHERE ts >= ? AND ${NOT_CRAWL} AND (verdict = 'unknown' OR model_id LIKE 'generic%' OR gpu_id LIKE 'generic%') GROUP BY model_q, hw_q ORDER BY n DESC LIMIT 25`),
   });
 }
 

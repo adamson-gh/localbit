@@ -202,4 +202,11 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("a bot that fills the hidden field is thanked but nothing is stored", !seen.some(([q]) => /INSERT INTO reports/.test(q)));
   const [, jb] = await rpc({ jsonrpc: "2.0", id: 130, method: "tools/call", params: { name: "report_issue", arguments: { problem: "suggestion", note: "x" } } });
   check("agents can't file 'suggestion' through report_issue (it becomes 'other')", jb.result.structuredContent.problem === "other", jb.result.structuredContent); }
+// stats: real questions apart from probes, crawlers and the owner's own test (Nov 26)
+{ const sqls = []; const envQ = { STATS_KEY: "k", DB: { prepare: sql => { sqls.push(sql); return { bind: () => ({ all: async () => ({ results: [] }), run: async () => {} }) }; } } };
+  const r = await worker.fetch(new Request("https://localbit.example.workers.dev/stats", { headers: { authorization: "Bearer k" } }), envQ, { waitUntil() {} });
+  const j = await r.json(); const real = sqls.find(s => /count\(\*\) n FROM calls WHERE ts >= \? AND tool IS NOT NULL AND/.test(s)) || "";
+  check("/stats counts real questions without crawlers, monitoring probes or the owner's test", "real_questions" in j && "probe_calls" in j && "real_unknown" in j && /localbit-self-test/.test(real) && /probe/.test(real) && /ClaudeBot/.test(real), real.slice(0, 200));
+  const unk = sqls.find(s => /verdict = 'unknown' OR model_id LIKE 'generic%'/.test(s)) || "";
+  check("the old 'couldn't answer' list leaves out the owner's test too", /localbit-self-test/.test(unk)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);
