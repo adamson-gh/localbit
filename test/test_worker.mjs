@@ -141,9 +141,8 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("a family with one known size: answered for that size, and says so", !one.isError && /Llama 3\.3 70B/.test(one.content[0].text) && /knows one size/.test(one.content[0].text), one.content[0].text.slice(0, 200));
   const many = await c({ model: "Qwen 2.5", hardware: "Rtx 4070" });
   check("a family with several sizes: lists them and asks for one", many.isError && /comes in 4 sizes/.test(many.content[0].text) && many.structuredContent.sizes.length === 4, many.content[0].text); }
-{ const g = await (await worker.fetch(new Request("https://localbit.example.workers.dev/.well-known/glama.json"), { ...env, GLAMA_EMAIL: "made-up@example.com" }, ctx)).json();
-  check("Glama ownership file: the connector schema and the maintainer email from the secret", g["$schema"].includes("glama.ai/mcp/schemas/connector.json") && g.maintainers[0].email === "made-up@example.com");
-  check("...and no file at all without the secret (the email never lives in the repo)", (await call("/.well-known/glama.json")).status === 404);
+{ for (const pth of ["/mcp/.well-known/glama.json", "/.well-known/glama.json"]) { const g = await (await call(pth)).json();
+    check("Glama claim file at " + pth + ": the claim token, no email", g["$schema"].includes("glama.ai/mcp/schemas/connector.json") && /^glama_claim_/.test(g.claim) && !JSON.stringify(g).includes("@")); }
   const mj2 = await (await call("/.well-known/mcp.json")).json();
   check("MCP discovery file: where to connect and the tools", /\/mcp$/.test(mj2.endpoint) && mj2.transport === "streamable-http" && mj2.tools.includes("check_fit")); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

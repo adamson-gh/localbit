@@ -624,8 +624,9 @@ async function handle(request, env, ctx) {
     if (path === "/measured") { logCall(env, ctx, { kind: "measured", ua }); return measuredPage(origin); }
     if (path === "/about") { logCall(env, ctx, { kind: "about", ua }); return about(origin); }
     // (Nov 25) standard discovery files: Glama's ownership claim, and the proposed MCP server description
-    // the maintainer email is a Cloudflare secret (GLAMA_EMAIL), not in the public repo; no secret, no file
-    if (path === "/.well-known/glama.json" && env && env.GLAMA_EMAIL) return json({ "$schema": "https://glama.ai/mcp/schemas/connector.json", maintainers: [{ email: env.GLAMA_EMAIL }] });
+    // (Nov 25) Glama's claim: a token bound to the owner's Glama account - no email, nothing personal. Served for the endpoint
+    // (/mcp/.well-known/glama.json) and the domain (/.well-known/glama.json); keep it published to stay verified.
+    if (path === "/.well-known/glama.json" || path === "/mcp/.well-known/glama.json") return json({ "$schema": "https://glama.ai/mcp/schemas/connector.json", claim: siteFile.glama_claim });
     if (path === "/.well-known/mcp.json") return json({ name: "LocalBit", description: "Will this AI model run on this hardware? Memory needed and estimated or measured speed for local models on graphics cards and Macs.",
       version: VERSION, endpoint: SITE + "/mcp", transport: "streamable-http", protocol_versions: PROTOCOLS, authentication: "none",
       tools: TOOLS.map(x => x.name), registry: siteFile.registry_name, documentation: SITE + "/llms.txt", website: SITE, repository: siteFile.repo });
