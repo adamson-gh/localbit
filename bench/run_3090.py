@@ -319,7 +319,8 @@ def main():
                 _, stopped = quiz(m, ver)
                 if stopped:
                     break
-            if cfg().get("remove_after") and m in (json.loads(PULLED.read_text(encoding="utf-8")) if PULLED.exists() else []):
+            # (Nov 26, owner: "keep installed") models the fresh-agent test uses (config eval_models) stay
+            if cfg().get("remove_after") and m not in cfg().get("eval_models", []) and m in (json.loads(PULLED.read_text(encoding="utf-8")) if PULLED.exists() else []):
                 subprocess.run(["ollama", "rm", m], capture_output=True, timeout=300)
                 log("removed", m, "(downloaded for the test)")
     finally:
