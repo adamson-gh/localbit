@@ -38,7 +38,7 @@ def check(name, cond, got=""):
     global ok, bad
     ok, bad = (ok + 1, bad) if cond else (ok, bad + 1)
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else "  got: %r" % (got,)))
-r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
 check("dry run: measures, shows what would be sent, sends nothing", r.returncode == 0 and '"gen_tps": 64.0' in r.stdout and "nothing was sent" in r.stdout and not posted, (r.stdout[-400:], r.stderr[-300:]))
 r = subprocess.run([sys.executable, script, "--model", "made-up:7b"], env=env, input="n\n", capture_output=True, text=True, timeout=120)
 check("answering no: nothing is sent", r.returncode == 0 and "nothing was sent" in r.stdout and not posted, r.stdout[-300:])
@@ -50,11 +50,11 @@ check("only the listed fields are sent - no names, paths or addresses", set(p) <
 check("results: both recipe contexts, prompt speed at 16K, on-card flag", [x["context"] for x in p.get("results", [])] == [4096, 16384] and p["results"][1].get("prompt_tps") == 2000.0 and p["results"][0].get("all_on_gpu") is True, p.get("results"))
 r = subprocess.run([sys.executable, script, "--dry-run"], env=env, input="1\n", capture_output=True, text=True, timeout=120)
 check("the model list leaves out embedding models (they can't be measured)", "nomic-embed-text" not in r.stdout and "made-up:7b" in r.stdout and "broken:1b" in r.stdout, r.stdout[:300])
-r = subprocess.run([sys.executable, script, "--model", "broken:1b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+r = subprocess.run([sys.executable, script, "--model", "broken:1b", "--dry-run"], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
 check("a model Ollama can't run: a plain sentence, no traceback", r.returncode == 1 and "couldn't run this model (error 500)" in r.stdout and "Stopped - nothing was sent." in r.stdout and "Test another model" in r.stdout and "Traceback" not in r.stdout + r.stderr, (r.stdout[-300:], r.stderr[-300:]))
 STATE["other_loaded"] = True
 
-r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
 check("another loaded model is named; without a terminal nothing is unloaded unasked", "Also loaded in Ollama, sharing the card's memory: other:3b (3.0 GB)" in r.stdout and "Not unloading" in r.stdout and "other:3b" not in unloaded, r.stdout[:400])
 import importlib.util as _iu
 _sp = _iu.spec_from_file_location("lbt2", script); lbt2 = _iu.module_from_spec(_sp); _sp.loader.exec_module(lbt2)
@@ -64,14 +64,14 @@ check("asked and answered yes (Enter): the other model is unloaded", unloaded[_b
 check("every run starts from a fresh load of the tested model (an existing copy may sit on the processor)", "made-up:7b" in unloaded, unloaded)
 import time as _t
 STATE["cpu_once"] = True; STATE["loaded"] = True; _n = len(unloaded); _t0 = _t.time()
-r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, capture_output=True, text=True, timeout=120)
+r = subprocess.run([sys.executable, script, "--model", "made-up:7b", "--dry-run"], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
 check("a copy found on the processor is unloaded and reloaded before timing, without waiting out the timeout", r.returncode == 0 and unloaded[_n:].count("made-up:7b") >= 1 and _t.time() - _t0 < 30, (unloaded[_n:], round(_t.time() - _t0, 1), r.stdout[-200:]))
 srv.shutdown()
 # the community publisher: only plausible rows, middle value, count
 tmp = Path(tempfile.mkdtemp())
 subs = [dict(ts="2026-11-26T10:00:00Z", model_id="llama-3.1-8b", gpu_id="rtx-4060", context=4096, quant="Q4_K_M", gen_tps=v, status=s, runtime="Ollama 0.40") for v, s in ((40, "community"), (42, "community"), (41, "community"), (400, "flagged"))]
 (tmp / "subs.json").write_text(json.dumps(subs), encoding="utf-8")
-r = subprocess.run([sys.executable, str(ROOT / "bench" / "publish_community.py")], env=dict(os.environ, LOCALBIT_SUBMISSIONS=str(tmp / "subs.json"), LOCALBIT_COMMUNITY=str(tmp / "c.json")), capture_output=True, text=True, timeout=60)
+r = subprocess.run([sys.executable, str(ROOT / "bench" / "publish_community.py")], env=dict(os.environ, LOCALBIT_SUBMISSIONS=str(tmp / "subs.json"), LOCALBIT_COMMUNITY=str(tmp / "c.json")), stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
 c = json.loads((tmp / "c.json").read_text())["community"] if (tmp / "c.json").exists() else []
 check("community data: flagged rows left out, the middle of the plausible ones, how many", len(c) == 1 and c[0]["gen_tps"] == 41 and c[0]["n"] == 3, (c, r.stderr[-200:]))
 # confirming the card against LocalBit's list (Windows AMD/Intel and typed names)

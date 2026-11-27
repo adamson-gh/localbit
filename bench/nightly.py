@@ -25,8 +25,8 @@ def say(*a):
 
 
 def run(cmd, timeout=7200, shell=False):
-    # (Nov 26: the tests now print symbols like "✓"; Windows' default text decoding failed on them and the run counted as failed)
-    r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, shell=shell,
+    # (Nov 26: no keyboard here - a test waiting on a question hung until its timeout) stdin closed; (Nov 26: the tests now print symbols like "✓"; Windows' default text decoding failed on them and the run counted as failed)
+    r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, shell=shell, stdin=subprocess.DEVNULL,
                        env=dict(os.environ, CI="true"))
     with open(LOG, "a", encoding="utf-8") as f:
         f.write((r.stdout or "")[-6000:] + (r.stderr or "")[-3000:])

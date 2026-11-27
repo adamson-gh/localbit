@@ -17,6 +17,29 @@ OLLAMA = os.environ.get("LOCALBIT_OLLAMA", "http://127.0.0.1:11434")
 VERSION = "1"
 
 
+def interactive():
+    """A real keyboard is attached. (Nov 26: on Windows the NUL device counts as a terminal to isatty(), so a hidden run waited on
+    a question) on Windows only a real console has a console mode."""
+    if not sys.stdin or not sys.stdin.isatty():
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            k = ctypes.windll.kernel32; mode = ctypes.c_uint32()
+            return bool(k.GetConsoleMode(k.GetStdHandle(-10), ctypes.byref(mode)))
+        except Exception:
+            return False
+    return True
+
+
+def ask_line(prompt, default=""):
+    """input(), but no keyboard (or Ctrl+Z / end of input) gives the default instead of an error."""
+    try:
+        return input(prompt)
+    except EOFError:
+        return default
+
+
 def http(url, body=None, timeout=900):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, headers={"content-type": "application/json", "user-agent": "localbit-test/" + VERSION})
@@ -61,7 +84,7 @@ def settle(hw, known=None, ask=input):
         print("Which of these is it?")
         for i, k in enumerate(c, 1):
             print("%2d. %s (%s GB)" % (i, k["name"], k.get("vram_gb")))
-        a = ask("Number (or Enter to keep '%s'): " % hw["hardware"]).strip() if (ask is not input or sys.stdin.isatty()) else ""
+        a = ask("Number (or Enter to keep '%s'): " % hw["hardware"]).strip() if (ask is not input or interactive()) else ""
         pick = c[int(a) - 1] if a.isdigit() and 1 <= int(a) <= len(c) else None
     else:
         pick = None
@@ -105,7 +128,7 @@ def hardware():
                 return {"hardware": names[0], "memory_gb": None, "cards": 1, "unsure": True, "via": "Windows' device list"}
         except Exception:
             pass
-    return {"hardware": input("Graphics card or Mac (e.g. 'RTX 4060' or 'M2 Pro 32 GB'): ").strip(), "memory_gb": None, "cards": 1, "via": "typed"}
+    return {"hardware": ask_line("Graphics card or Mac (e.g. 'RTX 4060' or 'M2 Pro 32 GB'): ").strip(), "memory_gb": None, "cards": 1, "via": "typed"}
 
 
 def gen(model, prompt, ctx, predict, thinks):
@@ -172,9 +195,9 @@ def free_card(model, ask=input):
         return
     names = ", ".join("%s (%.1f GB)" % (m["name"], m.get("size", 0) / 2**30) for m in others)
     print("    Also loaded in Ollama, sharing the card's memory: %s." % names)
-    if not sys.stdin.isatty() and ask is input:
+    if ask is input and not interactive():
         print("    (Not unloading them - numbers may come out low.)"); return
-    if ask("    Unload them for a fair test? They load again the next time you use them. [Y/n] ").strip().lower() in ("", "y", "yes"):
+    if (ask_line if ask is input else ask)("    Unload them for a fair test? They load again the next time you use them. [Y/n] ").strip().lower() in ("", "y", "yes"):
         for m in others:
             unload(m["name"])
         print("    Unloaded %s" % ("✓" if FANCY else "ok"))
@@ -313,7 +336,7 @@ def run():
             print("\nNone of your Ollama models write text (embedding models can't be measured) - pull one first, e.g. 'ollama pull llama3.1:8b'."); return 2
         for i, t in enumerate(texts, 1):
             say("%2d. %-28s %s" % (i, t, dim(gb(sizes.get(t, 0)) if sizes.get(t) else "")))
-        pick = input("    Which model to test (number)? ").strip()
+        pick = ask_line("    Which model to test (number)? ").strip()
         model = texts[int(pick) - 1] if pick.isdigit() and 0 < int(pick) <= len(texts) else texts[0]
     if model not in tags:
         print("\n%s isn't in Ollama on this machine." % model); return 2
@@ -404,7 +427,7 @@ def run():
         close("Done - dry run, nothing was sent.", [("See LocalBit's answer", page), ("Test another model", "py t.py" if os.name == "nt" else "python3 t.py"),
                                                    ("Share for real", "run it again without --dry-run")])
         return 0
-    if input("\n Share these numbers with LocalBit? They become public, anonymous open data. [y/N] ").strip().lower() not in ("y", "yes"):
+    if ask_line("\n Share these numbers with LocalBit? They become public, anonymous open data. [y/N] ").strip().lower() not in ("y", "yes"):
         close("Done - nothing was sent. Thanks for testing!", [("See LocalBit's answer", page), ("Test another model", "py t.py" if os.name == "nt" else "python3 t.py"),
                                            ("Changed your mind?", "run it again and answer y")])
         return 0
