@@ -179,7 +179,9 @@ check("the log holds what was asked and the agent's name - and no address", flat
 { const r = await (await call("/api/check?model=zephyrion%2040b&hardware=rtx%204090")).json();
   check("an unknown model says so first, in plain words", /^LocalBit doesn't know the model "zephyrion 40b" - this is a rough estimate for a typical 40B model/.test(r.answer), r.answer.slice(0, 200));
   const h = await (await call("/")).text();
-  check("the home page shows how to ask by URL (for agents that can only read pages)", /Ask by URL - any model, any card: <code>[^<]*\/check\?model=&lt;model&gt;&amp;hardware=&lt;card&gt;/.test(h)); }
+  check("the home page shows how to ask by URL (for agents that can only read pages)", /Ask by URL - any model, any card: <code>[^<]*\/check\?model=&lt;model&gt;&amp;hardware=&lt;card&gt;/.test(h));
+  // (Nov 27) a real example link a small model can follow (Gemma 4 on the website alone "never got past the home page")
+  check("the home page has a working example link", /<a href="[^"]*\/check\?model=llama3\.1:8b&amp;hardware=rtx%203060&amp;context=8192">/.test(h) && /<a href="[^"]*\/api\/check\?model=/.test(h)); }
 // contributor experience (Nov 26)
 { const rows = [{ ts: "2026-11-26T14:05:00Z", context: 4096, gen_tps: 40.1, status: "community" }, { ts: "2026-11-26T14:06:00Z", context: 16384, gen_tps: 90, status: "flagged" }];
   const envR = { DB: { prepare: sql => ({ bind: () => ({ all: async () => ({ results: /FROM submissions WHERE model_id/.test(sql) ? rows : [] }), run: async () => {} }) }) } };
