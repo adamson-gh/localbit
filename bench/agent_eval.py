@@ -88,7 +88,7 @@ def grade_truth(kinds, t, final):
             if got < max(1, len(names) * 2 // 3): miss.append("named %d of LocalBit's %d AMD cards" % (got, len(names)))
         elif k == "admits_unknown" and not re.search(r"(?i)(not (known|listed|in|recogni[sz]ed|found)|doesn't (know|recogni[sz]e|have|list)|don't (know|have)|unknown|couldn't find|no (data|record|entry)|generic|typical|based on (its|the) size)", f):
             miss.append("didn't say the model is unknown to LocalBit")
-        elif k == "test_script" and not re.search(r"(?i)test\.py|/test\b|script", f):
+        elif k == "test_script" and not re.search(r"(?i)\bt(?:est)?\.py|/test\b|script|3-minute test", f):
             miss.append("didn't point to the test")
     return miss
 
