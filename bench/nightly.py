@@ -136,6 +136,18 @@ def main():
                 st["agent_eval"][mdl] = json.loads(m.group(1)) if m else "failed"
                 if not m:
                     st["problems"].append("fresh-agent test failed for " + mdl)
+                # (Nov 27) the owner's other public tools run the same test with the same model while it's loaded - each
+                # listed in config other_evals as a path to its bench/agent_eval.py (relative to this project)
+                for ev in cfg.get("other_evals", []):
+                    evp = (ROOT / ev).resolve()
+                    if not evp.exists():
+                        continue
+                    nm = evp.parents[1].name
+                    r = run([PY, str(evp), "--model", mdl], timeout=2400)
+                    m = re.search(r"EVAL SUMMARY (\{.*\})", r.stdout or "")
+                    st.setdefault("other_evals", {}).setdefault(nm, {})[mdl] = json.loads(m.group(1)) if m else "failed"
+                    if not m:
+                        st["problems"].append("%s fresh-agent test failed for %s" % (nm, mdl))
             if others:
                 R.restore_assistant()
         except Exception as e:

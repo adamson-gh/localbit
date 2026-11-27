@@ -2,5 +2,8 @@
  "remove_after": true,
  "eval_models": [
   "gemma4:e4b"
+ ],
+ "other_evals": [
+  "../localsig/bench/agent_eval.py"
  ]
 }
