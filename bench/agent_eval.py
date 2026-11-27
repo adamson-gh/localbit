@@ -20,13 +20,13 @@ SYSTEM = "You are a helpful assistant. You have tools; use them when they help, 
 # final answer must get right - checked against LocalBit's own answer, fetched at run time, so the grade follows the data.
 Q = urllib.parse.quote
 TASKS = [
-    dict(id="fit", q="Will Llama 3.1 8B run on my RTX 4060? How fast would it be?", want={"check_fit", "compare"},
+    dict(id="fit", q="Will Llama 3.1 8B run on my RTX 4060? How fast would it be?", want={"check_fit", "compare_setups", "compare"},
          truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 8b"), Q("rtx 4060")), ["yes", "speed"])),
     dict(id="too_big", q="Can I run Llama 3.1 70B on a graphics card with 8 GB?", want={"check_fit"},
          truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 70b"), Q("8 GB")), ["no", "memory"])),
     dict(id="suggest", q="I have an RTX 3090 with 24 GB. What's the best model I can run with a 16K context?", want={"suggest_models"},
          truth=("/api/suggest?hardware=%s&context=16384" % Q("rtx 3090"), ["top_model"])),
-    dict(id="compare", q="Would Qwen3 32B be faster on an RTX 4090 or on an M4 Max?", want={"compare", "check_fit"},
+    dict(id="compare", q="Would Qwen3 32B be faster on an RTX 4090 or on an M4 Max?", want={"compare_setups", "compare", "check_fit"},
          truth=("/api/compare?a_model=%s&a_hardware=%s&b_hardware=%s" % (Q("qwen3 32b"), Q("rtx 4090"), Q("m4 max")), ["faster"])),
     dict(id="details", q="How much memory and memory bandwidth does an RTX 4070 Ti have?", want={"get_details", "list_known", "check_fit"},
          truth=("/api/details?name=%s" % Q("rtx 4070 ti"), ["mem_bw"])),
@@ -34,7 +34,7 @@ TASKS = [
          truth=("/api/hardware", ["amd_names"])),
     dict(id="typo", q="will lama3.1 8b run on a rtx4060ti 16gb", want={"check_fit"},
          truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 8b"), Q("rtx 4060 ti 16gb")), ["yes", "speed"])),
-    dict(id="two_cards", q="Can two RTX 3090s together run Llama 3.1 70B? How fast?", want={"check_fit", "compare"},
+    dict(id="two_cards", q="Can two RTX 3090s together run Llama 3.1 70B? How fast?", want={"check_fit", "compare_setups", "compare"},
          truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 70b"), Q("2x rtx 3090")), ["yes", "speed"])),
     dict(id="mac", q="I have a MacBook Pro with an M3 Pro and 18 GB of memory. Will Qwen3 14B run on it, and how fast?", want={"check_fit"},
          truth=("/api/check?model=%s&hardware=%s" % (Q("qwen3 14b"), Q("m3 pro 18gb")), ["yes", "speed"])),
@@ -45,7 +45,7 @@ TASKS = [
          want={"get_test_kit"}, forbid={"submit_result"}, truth=(None, ["test_script"])),
     dict(id="share_yes", q="I ran your 3-minute test: llama3.1:8b Q4_K_M on an NVIDIA GeForce RTX 4060 (8 GB), Ollama 0.40, Windows - 41 tokens/s at 4096 context and 38 at 16384, all on the GPU. Yes, please share these results.",
          want={"submit_result"}, truth=(None, [])),
-    dict(id="share_no", q="I measured 41 tokens/s for Llama 3.1 8B on my RTX 4060. Is that normal?", want={"check_fit", "get_details", "compare"},
+    dict(id="share_no", q="I measured 41 tokens/s for Llama 3.1 8B on my RTX 4060. Is that normal?", want={"check_fit", "get_details", "compare_setups", "compare"},
          forbid={"submit_result"}, truth=("/api/check?model=%s&hardware=%s" % (Q("llama 3.1 8b"), Q("rtx 4060")), ["speed"])),
 ]
 

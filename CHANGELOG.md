@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 - 2026-11-27
+- Tool names follow verb_noun: compare -> compare_setups, node_log -> get_node_log (the old names still answer, unlisted).
+- list_known takes query, limit and offset (filter and pages, with total and next_offset).
+- submit_result and report_issue return a random receipt; new get_status(receipt) says accepted / held for review, or received / fixed / closed.
+
 ## 0.4.1 - 2026-11-26
 - Added the RTX 4070 Ti (12 GB, 504 GB/s).
 - A misspelled model name ("lama3.1 8b") now finds the known model - only when every number matches.

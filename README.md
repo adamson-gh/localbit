@@ -10,8 +10,12 @@ real results exist. Every answer says which.
 - **MCP** (Streamable HTTP): `https://localbit.adamson-cf.workers.dev/mcp` - listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.adamson-gh/localbit`
   - `check_fit(model, hardware, context?, quant?, kv_cache?)` - fits / tight / doesn't fit, memory breakdown, tokens per second, what to change
   - `suggest_models(hardware, context?, min_tokens_per_s?)` - the largest known models that fit
-  - `list_known(kind)` - models or hardware LocalBit has specs for
+  - `compare_setups(a_model, a_hardware, b_model?, b_hardware?)` - two models on one card, or one model on two cards
+  - `list_known(kind, query?, limit?, offset?)` - models or hardware LocalBit has specs for, filtered and paged
+  - `get_details(name)` · `get_node_log(limit?)` - one model or card in full; the newest measurements from the RTX 3090 node
+  - `get_test_kit()` · `submit_result(...)` - measure your own machine and share the result
   - `report_issue(problem, ...)` - tell LocalBit an answer was wrong, with what you actually saw
+  - `get_status(receipt)` - follow up a submission or report by the receipt it gave
 - **JSON API**: `/api/check?model=llama%203.1%208b&hardware=rtx%203090&context=8192`, `/api/suggest?hardware=16%20GB`, `/api/models`, `/api/hardware`, `/api/measured`, `POST /api/report`
 - Pages per model and card (`/run/llama-3.1-8b/on/rtx-4060`), `/llms.txt`, `/sitemap.xml`
 

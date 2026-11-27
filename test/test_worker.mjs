@@ -14,7 +14,8 @@ check("initialize: the version asked for, tools offered, a name", st === 200 && 
 [st] = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" });
 check("a notification gets 202 and no body", st === 202, st);
 [st, j] = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-check("nine tools: seven read-only answers, report_issue and submit_result", j.result.tools.length === 9 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 7 && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
+check("ten tools: eight read-only answers, report_issue and submit_result; names are verb_noun", j.result.tools.length === 10 && j.result.tools.filter(t => t.annotations.readOnlyHint).length === 8 &&
+      j.result.tools.every(t => /^[a-z]+_[a-z_]+$/.test(t.name)) && !j.result.tools.some(t => t.name === "compare" || t.name === "node_log") && j.result.tools.some(t => t.name === "report_issue" && !t.annotations.readOnlyHint), j.result.tools.map(t => t.name));
 [st, j] = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "check_fit", arguments: { model: "qwen3.8:27b", hardware: "RTX 3090", context: 16384 } } });
 const sc = j.result.structuredContent;
 check("check_fit on the test machine: fits, and the speed is the measured one", sc.verdict === "fits" && sc.basis === "measured" && /4[78]\.\d+ tokens\/s measured/.test(j.result.content[0].text), j.result.content[0].text);
@@ -92,14 +93,14 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const [s2, j2] = await rpc({ jsonrpc: "2.0", id: 61, method: "tools/call", params: { name: "suggest_models", arguments: { hardware: "rtx 3090" } } });
   const q = j2.result.structuredContent.models.find(x => /Qwen3\.8/.test(x.model));
   check("suggest_models uses a measured speed where the node has one", q && q.basis === "measured" && /tokens\/s measured/.test(j2.result.content[0].text), q); }
-{ const [s, j] = await rpc({ jsonrpc: "2.0", id: 70, method: "tools/call", params: { name: "compare", arguments: { a_model: "gemma 4 e4b", a_hardware: "rtx 3090", b_model: "qwen3.8 27b" } } });
+{ const [s, j] = await rpc({ jsonrpc: "2.0", id: 70, method: "tools/call", params: { name: "compare_setups", arguments: { a_model: "gemma 4 e4b", a_hardware: "rtx 3090", b_model: "qwen3.8 27b" } } });
   const tx = j.result.content[0].text;
   check("compare: two models on one card - fit, speed, room, quality/energy note, as-of", !j.result.isError && /Gemma 4 E4B vs Qwen3\.8 27B on/.test(tx) && /Speed: Gemma 4 E4B is faster/.test(tx) && /Room left:/.test(tx) && /Data as of/.test(tx), tx);
-  const [s2, j2] = await rpc({ jsonrpc: "2.0", id: 71, method: "tools/call", params: { name: "compare", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060", b_hardware: "rtx 4090" } } });
+  const [s2, j2] = await rpc({ jsonrpc: "2.0", id: 71, method: "tools/call", params: { name: "compare_setups", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060", b_hardware: "rtx 4090" } } });
   check("compare: one model on two cards", !j2.result.isError && /RTX 4060 vs NVIDIA GeForce RTX 4090|4060 vs .*4090/.test(j2.result.content[0].text), j2.result.content[0].text);
-  const [s3, j3] = await rpc({ jsonrpc: "2.0", id: 72, method: "tools/call", params: { name: "compare", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060" } } });
+  const [s3, j3] = await rpc({ jsonrpc: "2.0", id: 72, method: "tools/call", params: { name: "compare_setups", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060" } } });
   check("compare with nothing to compare against says so", j3.result.isError && /second model/.test(j3.result.content[0].text));
-  const [s4, j4] = await rpc({ jsonrpc: "2.0", id: 73, method: "tools/call", params: { name: "node_log", arguments: {} } });
+  const [s4, j4] = await rpc({ jsonrpc: "2.0", id: 73, method: "tools/call", params: { name: "get_node_log", arguments: {} } });
   const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
   check("node_log lists each measured model once", j4.result.structuredContent.readings.length === new Set(mj.measured.map(r => r.model)).size, j4.result.structuredContent.readings.length);
   const lp = await call("/log"), rs = await call("/log.rss"), cp = await call("/compare?a_model=gemma%204%20e4b&a_hardware=rtx%203090&b_model=qwen3.8%2027b");
@@ -124,9 +125,9 @@ check("the log holds what was asked and the agent's name - and no address", flat
   const est = await c({ model: "llama 3.1 8b", hardware: "rtx 4060" });
   check("estimates come with a likely range and a page to cite", /likely \d+(\.\d)?-\d+/.test(est.content[0].text) && est.structuredContent.gen_tokens_per_s_range.length === 2 && /\/run\/llama-3\.1-8b\/on\/rtx-4060$/.test(est.structuredContent.source_url), est.content[0].text);
   const [sl, jl] = await rpc({ jsonrpc: "2.0", id: 91, method: "tools/list" });
-  check("tools declare what they return (outputSchema) and the intro names every tool", jl.result.tools.filter(x => x.outputSchema).length === 5);
+  check("tools declare what they return (outputSchema) and the intro names every tool", jl.result.tools.filter(x => x.outputSchema).length === 6);
   const [si, ji] = await rpc({ jsonrpc: "2.0", id: 92, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "made-up", version: "1" }, capabilities: {} } });
-  check("...", ["check_fit", "compare", "suggest_models", "node_log", "list_known", "report_issue"].every(n => ji.result.instructions.includes(n)), ji.result.instructions); }
+  check("...", ["check_fit", "compare_setups", "suggest_models", "get_node_log", "list_known", "report_issue", "get_status"].every(n => ji.result.instructions.includes(n)), ji.result.instructions); }
 { const badDB = { prepare: () => { throw new Error("made-up database outage"); } };
   const r = await worker.fetch(new Request("https://localbit.example.workers.dev/api/check?model=llama%203.1%208b&hardware=rtx%204060"), { DB: badDB }, ctx);
   check("a logging failure never costs the answer", r.status === 200 && (await r.json()).verdict === "fits");
@@ -216,4 +217,42 @@ check("the log holds what was asked and the agent's name - and no address", flat
 { const [, jl] = await rpc({ jsonrpc: "2.0", id: 140, method: "tools/list" });
   const cf = jl.result.tools.find(x => x.name === "check_fit").outputSchema.properties;
   check("check_fit's output schema allows every basis it returns, and the family answer's fields", cf.basis.enum.includes("community") && cf.sizes && "largest_that_fits" in cf); }
+// (Nov 27, Glama's review) old names still answer; list_known filters and pages; receipts and get_status
+{ const [, jo] = await rpc({ jsonrpc: "2.0", id: 301, method: "tools/call", params: { name: "compare", arguments: { a_model: "llama 3.1 8b", a_hardware: "rtx 4060", b_hardware: "rtx 4090" } } });
+  const [, jn] = await rpc({ jsonrpc: "2.0", id: 302, method: "tools/call", params: { name: "node_log", arguments: { limit: 2 } } });
+  check("the old names compare and node_log still answer (unlisted)", !jo.result.isError && !jn.result.isError);
+  const [, jf] = await rpc({ jsonrpc: "2.0", id: 303, method: "tools/call", params: { name: "list_known", arguments: { kind: "hardware", query: "amd" } } });
+  const hw = jf.result.structuredContent.hardware;
+  check("list_known: a filter keeps only matches", hw.length > 0 && hw.every(h => /amd/i.test(h.name + h.id)) && jf.result.structuredContent.total === hw.length, hw.map(h => h.name));
+  const [, jp] = await rpc({ jsonrpc: "2.0", id: 304, method: "tools/call", params: { name: "list_known", arguments: { kind: "models", limit: 3 } } });
+  const [, jp2] = await rpc({ jsonrpc: "2.0", id: 305, method: "tools/call", params: { name: "list_known", arguments: { kind: "models", limit: 3, offset: 3 } } });
+  check("list_known: pages of 3 with next_offset, no overlap", jp.result.structuredContent.models.length === 3 && jp.result.structuredContent.next_offset === 3 &&
+        jp2.result.structuredContent.models[0].id !== jp.result.structuredContent.models[0].id && /next page: offset 3/.test(jp.result.content[0].text));
+  const [, jz] = await rpc({ jsonrpc: "2.0", id: 306, method: "tools/call", params: { name: "list_known", arguments: { kind: "models", query: "zzzz" } } });
+  check("list_known: no match says so", /Nothing matches "zzzz"/.test(jz.result.content[0].text));
+  // receipts: a fake database that remembers what was written
+  const store = { submissions: [], reports: [] };
+  const envR2 = { DB: { prepare: sql => ({ bind: (...v) => ({
+      run: async () => { if (/INSERT INTO submissions/.test(sql)) store.submissions.push({ model_id: v[5], gpu_id: v[8], status: v[20], reasons: v[21], receipt: v[22], ts: v[0] });
+                         if (/INSERT INTO reports/.test(sql)) store.reports.push({ problem: v[7], model_id: v[5], receipt: v[13], status: v[14], ts: v[0] }); },
+      all: async () => ({ results: /FROM submissions WHERE receipt/.test(sql) ? store.submissions.filter(r => r.receipt === v[0]) : [] }),
+      first: async () => (/FROM reports WHERE receipt/.test(sql) ? store.reports.find(r => r.receipt === v[0]) || null : null) }) }) } };
+  const ctx2 = { waitUntil: p => p };
+  const rpc2 = async b => (await (await worker.fetch(new Request("https://localbit.example.workers.dev/mcp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }), envR2, ctx2)).json());
+  const sub = await rpc2({ jsonrpc: "2.0", id: 310, method: "tools/call", params: { name: "submit_result", arguments: { model: "llama3.1:8b", quant: "Q4_K_M", hardware: "NVIDIA GeForce RTX 4060", memory_gb: 8, runtime: "Ollama 0.40", os: "Windows", results: [{ context: 4096, gen_tps: 40, all_on_gpu: true }] } } });
+  const rc = sub.result.structuredContent.receipt;
+  check("submit_result gives a random receipt, in the text too", /^S-[A-Z2-9]{6}$/.test(rc) && sub.result.content[0].text.includes(rc) && /get_status/.test(sub.result.content[0].text), sub.result);
+  await new Promise(r => setTimeout(r, 10));
+  const gs = await rpc2({ jsonrpc: "2.0", id: 311, method: "tools/call", params: { name: "get_status", arguments: { receipt: rc.toLowerCase() } } });
+  check("get_status: the submission is accepted, case doesn't matter", gs.result.structuredContent.status === "accepted" && /after the nightly update/.test(gs.result.content[0].text), gs.result);
+  const rep1 = await rpc2({ jsonrpc: "2.0", id: 312, method: "tools/call", params: { name: "report_issue", arguments: { problem: "wrong_speed", model: "llama 3.1 8b", hardware: "rtx 4060", observed_tokens_per_s: 30 } } });
+  const rr = rep1.result.structuredContent.receipt;
+  await new Promise(r => setTimeout(r, 10));
+  const gr = await rpc2({ jsonrpc: "2.0", id: 313, method: "tools/call", params: { name: "get_status", arguments: { receipt: rr } } });
+  check("report_issue gives a receipt; get_status says received", /^R-[A-Z2-9]{6}$/.test(rr) && gr.result.structuredContent.status === "received" && store.reports[0].status === "received", gr.result);
+  const gx = await rpc2({ jsonrpc: "2.0", id: 314, method: "tools/call", params: { name: "get_status", arguments: { receipt: "S-ZZZZZZ" } } });
+  const gb = await rpc2({ jsonrpc: "2.0", id: 315, method: "tools/call", params: { name: "get_status", arguments: { receipt: "42" } } });
+  check("get_status: an unknown receipt is not found; a malformed one says what a receipt looks like", gx.result.isError && /No submission/.test(gx.result.content[0].text) && gb.result.isError && /like 'S-7K3Q9X'/.test(gb.result.content[0].text));
+  const two = new Set(Array.from({ length: 50 }, () => 0).map(() => null));
+  check("receipts are random codes, not counts", store.submissions[0].receipt !== "S-000001" && !/\d{6}/.test(rc)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

@@ -3,7 +3,7 @@
   "name": "io.github.adamson-gh/localbit",
   "title": "LocalBit",
   "description": "Will this AI model run on your GPU or Mac? Memory needed and estimated or measured speed.",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "remotes": [
     {
       "type": "streamable-http",

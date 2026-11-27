@@ -11,7 +11,7 @@ import recipeFile from "../data/recipe.json" with { type: "json" };
 import TEST_SCRIPT from "./generated/test_script.js";
 import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest, familyOf } from "./estimate.js";
 
-const VERSION = "0.4.1";
+const VERSION = "0.5.0";
 const SITE = siteFile.site;
 const OWNER = { name: siteFile.owner, url: siteFile.owner_url };
 const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [...(measuredFile.measured || []), ...modelsFile.measured], gpus: gpusFile.gpus };
@@ -37,8 +37,8 @@ const KNOWN_AGENTS = ["ChatGPT-User", "OAI-SearchBot", "GPTBot", "Claude-User", 
   "MistralAI-User", "cohere-ai", "Cursor", "python-httpx", "node", "curl"];
 
 const INSTRUCTIONS = "LocalBit answers whether a local AI model will run on a graphics card, several cards ('2x RTX 3090') or a Mac, how much memory " +
-  "it needs and how fast it will generate. check_fit for one model on one setup; compare for two models or two setups; suggest_models for what fits; " +
-  "node_log for the newest measurements from LocalBit's RTX 3090 node; list_known for exact names and ids. Every answer says estimated (with a likely " +
+  "it needs and how fast it will generate. check_fit for one model on one setup; compare_setups for two models or two setups; suggest_models for what fits; " +
+  "get_node_log for the newest measurements from LocalBit's RTX 3090 node; list_known for exact names and ids (filter with query); get_status to follow up a submission or report by its receipt. Every answer says estimated (with a likely " +
   "range) or measured, how current the data is, and links a page to cite (source_url). If an answer turns out wrong, call report_issue with what was seen.";
 
 const S = (props, extra = {}) => ({ type: "object", properties: props, ...extra });
@@ -50,13 +50,14 @@ const OUT = {
     sizes: { type: "array", description: "Only when a model family was asked without a size: each size on this hardware.", items: S({ id: { type: "string" }, name: { type: "string" }, params_b: { type: "number" }, verdict: { type: "string" }, memory_gb: { type: "number" }, gen_tokens_per_s: { type: "number" } }) },
     largest_that_fits: { type: ["string", "null"] }, suggestions: { type: "array", items: { type: "string" } }, source_url: { type: "string" }, data_as_of: S({ specs: { type: ["string", "null"] }, measured: { type: ["string", "null"] } }) }),
   suggest_models: S({ hardware: { type: "string" }, models: { type: "array", items: S({ model: { type: "string" }, quant: { type: "string" }, memory_gb: { type: "number" }, gen_tokens_per_s: { type: "number" }, basis: { type: "string" } }) } }),
-  compare: S({ a: { type: "object" }, b: { type: "object" }, a_node: { type: ["object", "null"] }, b_node: { type: ["object", "null"] } }),
-  node_log: S({ readings: { type: "array", items: S({ model: { type: "string" }, date: { type: "string" }, gen_tps: { type: "number" }, quality_pct: { type: ["number", "null"] }, memory_gb: { type: "number" } }) } }),
-  list_known: S({ models: { type: "array" }, hardware: { type: "array" } }),
+  compare_setups: S({ a: { type: "object" }, b: { type: "object" }, a_node: { type: ["object", "null"] }, b_node: { type: ["object", "null"] } }),
+  get_node_log: S({ readings: { type: "array", items: S({ model: { type: "string" }, date: { type: "string" }, gen_tps: { type: "number" }, quality_pct: { type: ["number", "null"] }, memory_gb: { type: "number" } }) } }),
+  list_known: S({ models: { type: "array" }, hardware: { type: "array" }, total: { type: "integer" }, offset: { type: "integer" }, next_offset: { type: ["integer", "null"] } }),
+  get_status: S({ receipt: { type: "string" }, kind: { type: "string", enum: ["submission", "report", "unknown"] }, status: { type: "string" }, detail: { type: "string" } }),
 };
 const TOOLS = [
   { name: "check_fit", title: "Will this model run on this hardware?",
-    description: "Checks whether one local AI model fits one hardware setup - a graphics card, several identical cards ('2x RTX 3090') or a Mac - and returns the verdict (fits / tight / does_not_fit), memory needed (weights + context cache + overhead) against memory available, and generation speed in tokens per second: measured on LocalBit's test node where it has run that pair, otherwise estimated with a likely range. When it doesn't fit, it says what to change (smaller quantization, shorter context, other hardware); it warns when the context exceeds the model's published maximum. Use this when the user names a model and their hardware. Use suggest_models instead when they only name hardware ('what can I run?'), compare when weighing two options, and list_known first if a name isn't recognised (unknown names return the closest known ones). Every answer includes a citable source_url and the date the data is current as of.",
+    description: "Checks whether one local AI model fits one hardware setup - a graphics card, several identical cards ('2x RTX 3090') or a Mac - and returns the verdict (fits / tight / does_not_fit), memory needed (weights + context cache + overhead) against memory available, and generation speed in tokens per second: measured on LocalBit's test node where it has run that pair, otherwise estimated with a likely range. When it doesn't fit, it says what to change (smaller quantization, shorter context, other hardware); it warns when the context exceeds the model's published maximum. Use this when the user names a model and their hardware. Use suggest_models instead when they only name hardware ('what can I run?'), compare_setups when weighing two options, and list_known first if a name isn't recognised (unknown names return the closest known ones). Every answer includes a citable source_url and the date the data is current as of.",
     inputSchema: { type: "object", required: ["model", "hardware"], properties: {
       model: { type: "string", description: "Model name, e.g. 'Llama 3.1 8B', 'qwen3:30b', 'gpt-oss 20b', or a size like '13B model'. list_known gives exact names." },
       hardware: { type: "string", description: "Graphics card, several cards ('2x RTX 3090') or a Mac ('M2 Pro 32 GB'), or memory like '12 GB card'. list_known gives exact names." },
@@ -65,27 +66,30 @@ const TOOLS = [
       kv_cache: { type: "string", description: "Context cache type: f16 (default), q8_0 or q4_0." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "suggest_models", title: "Which models fit this hardware?",
-    description: "Lists the largest known local AI models that fit on the given hardware at the given context length (default 8,192 tokens), up to 10, biggest first, each with its quantization, memory needed and speed in tokens per second (measured where LocalBit's node has run it, otherwise estimated). min_tokens_per_s drops models slower than that. Use this when the user names only their hardware and asks what they can run; use check_fit to verify one specific model, and compare to weigh two. If nothing fits it says so; unknown hardware returns an error with how to describe it (a card name, memory like '16 GB', or a Mac chip).",
+    description: "Lists the largest known local AI models that fit on the given hardware at the given context length (default 8,192 tokens), up to 10, biggest first, each with its quantization, memory needed and speed in tokens per second (measured where LocalBit's node has run it, otherwise estimated). min_tokens_per_s drops models slower than that. Use this when the user names only their hardware and asks what they can run; use check_fit to verify one specific model, and compare_setups to weigh two. If nothing fits it says so; unknown hardware returns an error with how to describe it (a card name, memory like '16 GB', or a Mac chip).",
     inputSchema: { type: "object", required: ["hardware"], properties: {
       hardware: { type: "string", description: "Graphics card or computer, e.g. 'RTX 4060', 'M4 Pro', '16 GB'." },
       context: { type: "integer", description: "Context length in tokens (default 8192)." },
       min_tokens_per_s: { type: "number", description: "Only models at least this fast (estimated)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "list_known", title: "Models and hardware LocalBit knows",
-    description: "Returns LocalBit's catalog: kind 'models' gives every model with its id, name and parameter count (and active parameters for mixture-of-experts models); kind 'hardware' gives every graphics card and Mac with its id, name and memory. Each entry says whether LocalBit's test node has measured it. Call this first when unsure how to name a model or card, then pass the exact id to check_fit, compare or suggest_models. Sizes not listed still work in those tools ('13B model', '12 GB card', 'M2 Pro 32 GB').",
-    inputSchema: { type: "object", required: ["kind"], properties: { kind: { type: "string", enum: ["models", "hardware"] } } },
+    description: "Returns LocalBit's catalog: kind 'models' gives every model with its id, name and parameter count (and active parameters for mixture-of-experts models); kind 'hardware' gives every graphics card and Mac with its id, name and memory. Each entry says whether LocalBit's test node has measured it. Call this first when unsure how to name a model or card, then pass the exact id to check_fit, compare_setups or suggest_models. Sizes not listed still work in those tools ('13B model', '12 GB card', 'M2 Pro 32 GB').",
+    inputSchema: { type: "object", required: ["kind"], properties: { kind: { type: "string", enum: ["models", "hardware"] },
+      query: { type: "string", description: "Only entries whose name or id contains this, e.g. 'amd', 'rtx 40', 'qwen', '70b'." },
+      limit: { type: "integer", description: "How many to return (default 100, up to 200)." },
+      offset: { type: "integer", description: "Skip this many (for the next page; the answer gives next_offset)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
-  { name: "compare", title: "Compare two models or two cards",
+  { name: "compare_setups", title: "Compare two models or two cards",
     description: "Compares two options head to head, in one of two modes: two models on the same hardware (give a_model, b_model and a_hardware), or one model on two hardware setups (give a_model, a_hardware and b_hardware). Returns which fits, which is faster (with the ratio), which leaves more memory free and - only where LocalBit's node measured both - which scores higher on its quality check and uses less energy per answer; otherwise it says those are unavailable. context (default 8,192 tokens) applies to both. Use this when the user is choosing between two options; use check_fit for a single model and hardware. Giving neither b_model nor b_hardware returns an error asking for the second option.",
     inputSchema: { type: "object", required: ["a_model", "a_hardware"], properties: {
       a_model: { type: "string", description: "First model, e.g. 'gemma 4 e4b'." },
       a_hardware: { type: "string", description: "First hardware, e.g. 'rtx 3090'." },
-      b_model: { type: "string", description: "Second model (leave out to compare one model on two cards)." },
-      b_hardware: { type: "string", description: "Second hardware (leave out to compare two models on the same card)." },
+      b_model: { type: "string", description: "Second model (leave out to compare_setups one model on two cards)." },
+      b_hardware: { type: "string", description: "Second hardware (leave out to compare_setups two models on the same card)." },
       context: { type: "integer", description: "Context length in tokens (default 8192)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
-  { name: "node_log", title: "Latest readings from LocalBit's test node",
-    description: "Returns the newest measurements from LocalBit's own RTX 3090 test node, newest first (default 10, up to 50): for each model, measured speed in tokens per second at 16K context, quality score (% of 60 script-graded questions right), card memory used, time to read a 3,000-word document, energy per answer, and the date. Use this when the user asks what has actually been tested or measured recently, or wants real results rather than estimates; use check_fit or compare to answer about a specific model and hardware (they include these measurements automatically when they apply).",
+  { name: "get_node_log", title: "Latest readings from LocalBit's test node",
+    description: "Returns the newest measurements from LocalBit's own RTX 3090 test node, newest first (default 10, up to 50): for each model, measured speed in tokens per second at 16K context, quality score (% of 60 script-graded questions right), card memory used, time to read a 3,000-word document, energy per answer, and the date. Use this when the user asks what has actually been tested or measured recently, or wants real results rather than estimates; use check_fit or compare_setups to answer about a specific model and hardware (they include these measurements automatically when they apply).",
     inputSchema: { type: "object", properties: { limit: { type: "integer", description: "How many models (default 10)." } } },
     annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "get_details", title: "Full details of one model or card",
@@ -106,8 +110,12 @@ const TOOLS = [
       recipe_version: { type: "string" },
       results: { type: "array", items: { type: "object", required: ["context", "gen_tps"], properties: { context: { type: "integer" }, gen_tps: { type: "number" }, prompt_tps: { type: "number" }, all_on_gpu: { type: "boolean" }, loaded_gb: { type: "number" } } } } } },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false, idempotentHint: false } },
+  { name: "get_status", title: "Status of a submission or report",
+    description: "Follows up a measurement sent with submit_result or a report sent with report_issue, by the receipt either one returned (e.g. 'S-7K3Q9X' or 'R-2M8D4P'): a submission is accepted (it appears in answers, labelled unverified, after the nightly update) or held for review; a report is received, fixed or closed. Use this when the user asks what happened to a result or report they sent earlier. Receipts are random codes - nothing about who sent it is kept or shown.",
+    inputSchema: { type: "object", required: ["receipt"], properties: { receipt: { type: "string", description: "The receipt from submit_result or report_issue." } } },
+    annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true } },
   { name: "report_issue", title: "Report a wrong or missing answer",
-    description: "Sends LocalBit a report that an answer was wrong (it didn't fit, the speed was different, a spec is off) or that a model or card is missing, so it can be corrected. Use this after check_fit, compare or suggest_models gave an answer the user's real experience contradicts. Real results help most: the tokens per second and memory actually seen, the context length and the runtime. Never include names, emails or other personal details - notes are stored as written with emails, numbers and links removed. Returns a confirmation; each call files a separate report, so send it once. Limited to 5 reports a minute.",
+    description: "Sends LocalBit a report that an answer was wrong (it didn't fit, the speed was different, a spec is off) or that a model or card is missing, so it can be corrected. Use this after check_fit, compare_setups or suggest_models gave an answer the user's real experience contradicts. Real results help most: the tokens per second and memory actually seen, the context length and the runtime. Never include names, emails or other personal details - notes are stored as written with emails, numbers and links removed. Returns a confirmation; each call files a separate report, so send it once. Limited to 5 reports a minute.",
     inputSchema: { type: "object", required: ["problem"], properties: {
       problem: { type: "string", enum: ["wrong_fit", "wrong_speed", "wrong_spec", "missing_model", "missing_hardware", "other"] },
       model: { type: "string", description: "The model asked about." },
@@ -201,14 +209,20 @@ function suggest(args) {
 
 function listKnown(args) {
   // (Nov 25) ids and sizes too, so an agent can pass an exact id and pick by size; Macs and memory sizes not listed still work
+  // (Nov 27, Glama's review: "no search/filter or pagination over the catalog") query, limit and offset
+  const q = String(args.query || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const keep = r => !q || q.split(" ").every(w => (r.name + " " + r.id).toLowerCase().includes(w));
+  const limit = Math.min(200, Math.max(1, +args.limit || 100)), offset = Math.max(0, +args.offset || 0);
+  const page = rows => { const all = rows.filter(keep); const part = all.slice(offset, offset + limit); return { all, part, next: offset + limit < all.length ? offset + limit : null }; };
+  const tail = (all, part, next) => (next !== null ? `\nShowing ${offset + 1}-${offset + part.length} of ${all.length}; next page: offset ${next}.` : "") + (q && !all.length ? `\nNothing matches "${args.query}".` : "");
   if (args.kind === "hardware") {
-    const rows = DATA.gpus.map(g => ({ id: g.id, name: g.name, memory_gb: g.vram_gb, bandwidth_gbs: g.bandwidth_gbs, measured: DATA.measured.some(r => r.gpu === g.id) }));
-    return { text: `${rows.length} cards and Macs (also accepted: any memory size like "12 GB", or a Mac chip like "M2 Pro 32 GB"):\n` + rows.map(r => `- ${r.name} [${r.id}] ${r.memory_gb} GB${r.measured ? " · measured" : ""}`).join("\n"),
-             data: { hardware: rows }, log: {} };
+    const { all, part, next } = page(DATA.gpus.map(g => ({ id: g.id, name: g.name, memory_gb: g.vram_gb, bandwidth_gbs: g.bandwidth_gbs, measured: DATA.measured.some(r => r.gpu === g.id) })));
+    return { text: `${all.length} cards and Macs${q ? ` matching "${args.query}"` : ""} (also accepted: any memory size like "12 GB", or a Mac chip like "M2 Pro 32 GB"):\n` + part.map(r => `- ${r.name} [${r.id}] ${r.memory_gb} GB${r.measured ? " · measured" : ""}`).join("\n") + tail(all, part, next),
+             data: { hardware: part, total: all.length, offset, next_offset: next }, log: {} };
   }
-  const rows = DATA.models.map(m => ({ id: m.id, name: m.name, params_b: m.params_b, active_b: m.active_b || m.params_b, measured: DATA.measured.some(r => r.model === m.id) }));
-  return { text: `${rows.length} models (also accepted: any size like "13B model"):\n` + rows.map(r => `- ${r.name} [${r.id}] ${r.params_b}B${r.active_b < r.params_b ? `, ${r.active_b}B active` : ""}${r.measured ? " · measured" : ""}`).join("\n"),
-           data: { models: rows }, log: {} };
+  const { all, part, next } = page(DATA.models.map(m => ({ id: m.id, name: m.name, params_b: m.params_b, active_b: m.active_b || m.params_b, measured: DATA.measured.some(r => r.model === m.id) })));
+  return { text: `${all.length} models${q ? ` matching "${args.query}"` : ""} (also accepted: any size like "13B model"):\n` + part.map(r => `- ${r.name} [${r.id}] ${r.params_b}B${r.active_b < r.params_b ? `, ${r.active_b}B active` : ""}${r.measured ? " · measured" : ""}`).join("\n") + tail(all, part, next),
+           data: { models: part, total: all.length, offset, next_offset: next }, log: {} };
 }
 
 // (Nov 25, owner: "fun things for the agents" -> compare two + the node log -> "Ok")
@@ -302,17 +316,24 @@ function checkSubmission(b) {
   const status = reasons.some(x => /not known/.test(x)) || rows.some(r => r.reasons.length) ? "flagged" : "community";
   return { status, reasons, rows, m, g };
 }
+// (Nov 27, Glama's review: "no way to check the status of a previously filed report or submission") each one gets a receipt: a random
+// code, not a running number - it can't be guessed, and it says nothing about who sent it
+const RCPT = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function receipt(prefix) {
+  const b = new Uint8Array(6); crypto.getRandomValues(b);
+  return prefix + "-" + [...b].map(x => RCPT[x % RCPT.length]).join("");
+}
 function submitResult(env, ctx, b, source, client) {
   const c = checkSubmission(b || {});
   if (c.status === "rejected") return { error: true, text: "Not recorded: " + c.reasons.join("; ") + ". See get_test_kit for the format.", data: { status: "rejected" }, log: { verdict: "rejected" } };
-  const now = new Date().toISOString();
+  const now = new Date().toISOString(), rc = receipt("S");
   if (env && env.DB) {
     try {
-      for (const r of c.rows) ctx.waitUntil(env.DB.prepare("INSERT INTO submissions (ts, source, client, recipe_version, model_q, model_id, quant, hw_q, gpu_id, cards, memory_gb, context, gen_tps, prompt_tps, all_on_gpu, loaded_gb, runtime, os, est_tps, ratio, status, reasons) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      for (const r of c.rows) ctx.waitUntil(env.DB.prepare("INSERT INTO submissions (ts, source, client, recipe_version, model_q, model_id, quant, hw_q, gpu_id, cards, memory_gb, context, gen_tps, prompt_tps, all_on_gpu, loaded_gb, runtime, os, est_tps, ratio, status, reasons, receipt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
         .bind(now, source, String(client || "").slice(0, 60), String(b.recipe_version || "").slice(0, 10), String(b.model).slice(0, 80), c.m ? c.m.id : null, String(b.quant || "").slice(0, 20) || null,
               String(b.hardware).slice(0, 80), c.g ? c.g.id : null, +b.cards || 1, Number.isFinite(+b.memory_gb) ? +b.memory_gb : null, r.context, r.gen_tps, r.prompt_tps, r.all_on_gpu === null ? null : (r.all_on_gpu ? 1 : 0),
               r.loaded_gb, String(b.runtime || "").slice(0, 40), String(b.os || "").slice(0, 20), r.est_tps ?? null, r.ratio ?? null, r.reasons.length || c.status === "flagged" ? "flagged" : "community",
-              [...c.reasons, ...r.reasons].join("; ").slice(0, 240) || null).run().catch(() => {}));
+              [...c.reasons, ...r.reasons].join("; ").slice(0, 240) || null, rc).run().catch(() => {}));
     } catch {}
   }
   const what = `${c.m ? c.m.name : b.model} on ${c.g ? c.g.name : b.hardware}`;
@@ -320,8 +341,29 @@ function submitResult(env, ctx, b, source, client) {
   const link = c.m && c.g && c.m.matched === "known" && c.g.matched === "known" && !c.g.cards ? `${SITE}/run/${c.m.id}/on/${c.g.id}` : null;
   const text = c.status === "community"
     ? `Thank you - recorded as a community result for ${what} (${c.rows.map(r => `${r.gen_tps} tokens/s at ${r.context.toLocaleString("en-US")}`).join(", ")}). It will appear in LocalBit's answers, labelled unverified, after tonight's update${link ? ` - and is listed now at ${link}` : ""}.`
-    : `Recorded, but flagged for review rather than published: ${[...c.reasons, ...c.rows.flatMap(r => r.reasons)].join("; ")}. If the numbers are right, nothing more is needed - flagged results are checked by hand.`;
-  return { text, data: { status: c.status, url: link, rows: c.rows.map(({ reasons, ...r }) => ({ ...r, flags: reasons })) }, log: { model_id: c.m && c.m.id, gpu_id: c.g && c.g.id, verdict: "submit_" + c.status } };
+    : `Recorded (receipt ${rc}), but flagged for review rather than published: ${[...c.reasons, ...c.rows.flatMap(r => r.reasons)].join("; ")}. If the numbers are right, nothing more is needed - flagged results are checked by hand.`;
+  return { text: c.status === "community" ? text.replace(/^Thank you - recorded/, `Thank you - recorded (receipt ${rc})`) + " Follow it up any time with get_status and the receipt." : text + " Follow it up with get_status and the receipt.",
+           data: { status: c.status, receipt: rc, url: link, rows: c.rows.map(({ reasons, ...r }) => ({ ...r, flags: reasons })) }, log: { model_id: c.m && c.m.id, gpu_id: c.g && c.g.id, verdict: "submit_" + c.status } };
+}
+async function getStatus(env, args) {
+  const r = String(args.receipt || "").toUpperCase().replace(/\s+/g, "").trim();
+  if (!/^[SR]-[A-Z0-9]{6}$/.test(r)) return { error: true, text: "get_status needs the receipt submit_result or report_issue gave, like 'S-7K3Q9X' or 'R-2M8D4P'.", data: { receipt: r, kind: "unknown", status: "unknown" }, log: { verdict: "bad_receipt" } };
+  if (!env || !env.DB) return { error: true, text: "LocalBit can't look up receipts right now - try again later.", data: { receipt: r, kind: "unknown", status: "unknown" }, log: { verdict: "no_db" } };
+  if (r[0] === "S") {
+    const rows = (await env.DB.prepare("SELECT model_id, model_q, gpu_id, hw_q, context, gen_tps, status, reasons, ts FROM submissions WHERE receipt = ?").bind(r).all().catch(() => ({ results: [] }))).results || [];
+    if (!rows.length) return { error: true, text: `No submission with receipt ${r}.`, data: { receipt: r, kind: "submission", status: "not_found" }, log: { verdict: "not_found" } };
+    const held = rows.some(x => x.status === "flagged"), what = `${rows[0].model_id || rows[0].model_q} on ${rows[0].gpu_id || rows[0].hw_q}`;
+    const status = held ? "held_for_review" : "accepted";
+    const detail = held ? `Held for review: ${[...new Set(rows.map(x => x.reasons).filter(Boolean))].join("; ").slice(0, 200) || "checked by hand before it's published"}.`
+                        : `Accepted - it appears in LocalBit's answers, labelled unverified, after the nightly update (${rows.length} reading${rows.length > 1 ? "s" : ""}, sent ${String(rows[0].ts).slice(0, 10)}).`;
+    return { text: `Submission ${r} (${what}): ${detail}`, data: { receipt: r, kind: "submission", status, detail }, log: { verdict: "status_" + status } };
+  }
+  const x = await env.DB.prepare("SELECT problem, model_id, model_q, gpu_id, hw_q, status, ts FROM reports WHERE receipt = ?").bind(r).first().catch(() => null);
+  if (!x) return { error: true, text: `No report with receipt ${r}.`, data: { receipt: r, kind: "report", status: "not_found" }, log: { verdict: "not_found" } };
+  const status = x.status || "received";
+  const detail = { received: "Received - the owner reads every report; the answer is corrected when the report checks out.", fixed: "Fixed - LocalBit's data was corrected.", closed: "Closed - checked, and the answer was right as it was." }[status] || status;
+  return { text: `Report ${r} (${String(x.problem).replace("_", " ")}${x.model_id || x.model_q ? ", " + (x.model_id || x.model_q) : ""}${x.gpu_id || x.hw_q ? " on " + (x.gpu_id || x.hw_q) : ""}, sent ${String(x.ts).slice(0, 10)}): ${detail}`,
+           data: { receipt: r, kind: "report", status, detail }, log: { verdict: "status_" + status } };
 }
 function getDetails(args) {
   const q = String(args.name || "").trim();
@@ -348,7 +390,8 @@ function getDetails(args) {
   const cm = closest(q, DATA.models), cg = closest(q, DATA.gpus);
   return { error: true, text: `LocalBit doesn't know "${q}".${cm.length || cg.length ? " Closest known: " + [...cm, ...cg].slice(0, 4).join(", ") + "." : ""} list_known gives exact names.`, data: { closest: [...cm, ...cg] }, log: { verdict: "unknown" } };
 }
-const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown, compare, node_log: nodeLog, get_details: getDetails, get_test_kit: getTestKit };
+// (Nov 27, Glama's review: names are verb_noun) compare_setups and get_node_log; the old names still answer, unlisted, so nothing breaks
+const RUN = { check_fit: checkFit, suggest_models: suggest, list_known: listKnown, compare_setups: compare, get_node_log: nodeLog, compare, node_log: nodeLog, get_details: getDetails, get_test_kit: getTestKit };
 
 // ---------- logging (no IPs, nothing personal) ----------
 function agentOf(ua) {
@@ -379,11 +422,12 @@ function saveReport(env, ctx, a, source, client) {
   const row = [new Date().toISOString(), source, String(client || "").slice(0, 80), String(a.model || "").slice(0, 80) || null, String(a.hardware || "").slice(0, 80) || null,
     m ? m.id : null, g ? g.id : null, problem, num(a.observed_tokens_per_s, 0, 100000), num(a.observed_memory_gb, 0, 4096), num(a.context, 0, 10000000),
     String(a.runtime || "").slice(0, 60) || null, scrub(a.note) || null];
-  if (env && env.DB) ctx.waitUntil(env.DB.prepare("INSERT INTO reports (ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(...row).run().catch(() => {}));
-  if (problem === "suggestion") return { text: "Thanks - suggestion recorded. It's read by the owner; nothing personal is kept.", data: { recorded: true, problem }, log: { verdict: "suggestion" } };
+  const rc = receipt("R");
+  if (env && env.DB) ctx.waitUntil(env.DB.prepare("INSERT INTO reports (ts, source, client, model_q, hw_q, model_id, gpu_id, problem, obs_tps, obs_mem_gb, context, runtime, note, receipt, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(...row, rc, "received").run().catch(() => {}));
+  if (problem === "suggestion") return { text: `Thanks - suggestion recorded (receipt ${rc}). It's read by the owner; nothing personal is kept.`, data: { recorded: true, problem, receipt: rc }, log: { verdict: "suggestion" } };
   return { text: "Thanks - LocalBit recorded the report" + (m || g ? ` (${[m && m.name, g && g.name].filter(Boolean).join(" on ")})` : "") +
-    ". Reports are read by the owner and used to correct the data; nothing personal is kept.", data: { recorded: true, problem }, log: { model_id: m && m.id, gpu_id: g && g.id, verdict: "report" } };
+    `, receipt ${rc}. Reports are read by the owner and used to correct the data; nothing personal is kept. Follow it up with get_status and the receipt.`, data: { recorded: true, problem, receipt: rc }, log: { model_id: m && m.id, gpu_id: g && g.id, verdict: "report" } };
 }
 
 // ---------- rate limits (Cloudflare's limiter sees the address for a moment; LocalBit never stores it) ----------
@@ -430,10 +474,11 @@ async function mcp(request, env, ctx) {
     case "tools/call": {
       const args = p.arguments || {};
       if ((p.name === "report_issue" || p.name === "submit_result") && await limited(env, request, "REPORTS")) return fail(-32000, "Too many submissions from here - try again in a minute.");
-      const fn = p.name === "report_issue" ? (a => saveReport(env, ctx, a, "mcp", ua)) : p.name === "submit_result" ? (a => submitResult(env, ctx, a, "mcp", ua)) : RUN[p.name];
+      const fn = p.name === "report_issue" ? (a => saveReport(env, ctx, a, "mcp", ua)) : p.name === "submit_result" ? (a => submitResult(env, ctx, a, "mcp", ua))
+               : p.name === "get_status" ? (a => getStatus(env, a)) : RUN[p.name];
       if (!fn) return fail(-32602, "Unknown tool: " + p.name);
       let out;
-      try { out = fn(args); }
+      try { out = await fn(args); }
       catch (e) { logError(env, ctx, "/mcp", p.name, e); return fail(-32603, "LocalBit hit an internal error answering that - it has been logged. Try again, or rephrase the model or hardware."); }
       logCall(env, ctx, { kind: "mcp_call", ua, tool: p.name, model_q: args.model, hw_q: args.hardware || args.kind, ...out.log });
       return reply({ content: [{ type: "text", text: out.text }], structuredContent: out.data, isError: !!out.error });
@@ -527,7 +572,7 @@ function home(origin) {
 <div class="card"><h3>Open data</h3><p>Every reading marked measured or estimated, with its date. CC BY 4.0, scripts on <a href="${siteFile.repo}">GitHub</a>.</p></div></div>
 <h2 id="agents">For AI agents</h2>
 <div class="card"><p style="margin-top:0"><b>MCP</b> (Streamable HTTP, no key): <code>${origin}/mcp</code> · registry: <code>io.github.adamson-gh/localbit</code></p>
-<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare</code> · <code>get_details</code> · <code>node_log</code> · <code>list_known</code> · <code>get_test_kit</code> · <code>submit_result</code> · <code>report_issue</code></p>
+<p>Tools: <code>check_fit</code> · <code>suggest_models</code> · <code>compare_setups</code> · <code>get_details</code> · <code>get_node_log</code> · <code>list_known</code> · <code>get_test_kit</code> · <code>submit_result</code> · <code>report_issue</code> · <code>get_status</code></p>
 <p style="margin-bottom:0"><b>JSON API:</b> <code>GET ${origin}/api/check?model=llama%203.1%208b&amp;hardware=rtx%203090&amp;context=8192</code> · <a href="${origin}/llms.txt">llms.txt</a> · <a href="${origin}/docs">docs</a></p></div>
 <h2>Logged</h2><p class="small">Tool, model, hardware, verdict and client name. No IP addresses, accounts or personal data. <a href="${origin}/about">About, privacy, license</a></p>`, origin,
   "Will this AI model run on my GPU or Mac? Memory needed and tokens per second for local models - estimated from specs, measured on a real RTX 3090 and by the community.");
@@ -697,7 +742,7 @@ function comparePage(sp, origin) {
 function logPage(origin) {
   const e = nodeEntries(50);
   return page("Node log - LocalBit", `<h1>Node log</h1><p class="lede" style="margin-bottom:6px">Readings from the field, newest first.</p>
-<p class="small" style="margin:0 0 18px">RTX 3090 node · runs nightly · <a href="${origin}/log.rss">RSS</a> · agents: <code>node_log</code></p>
+<p class="small" style="margin:0 0 18px">RTX 3090 node · runs nightly · <a href="${origin}/log.rss">RSS</a> · agents: <code>get_node_log</code></p>
 ${e.length ? `<div class="models">${e.map(x => `<section class="model"><h3><a href="${origin}/measured#${esc(x.model_id)}">${esc(x.model)}</a></h3><span class="mmeta">${esc(x.date)}</span>
 <div class="small" style="margin-top:4px">${x.gen_tps} tokens/s${x.quality_pct != null ? ` · ${x.quality_pct}% quality` : ""} · ${x.memory_gb} GB · ${x.read_4k_s ?? "-"} seconds to read 3,000 words · ${x.wh_per_answer ?? "-"} Wh per answer</div></section>`).join("")}</div>` : "<p>No readings yet.</p>"}`, origin);
 }
@@ -752,7 +797,7 @@ ${reportForm(origin, m, g)}`, origin, out.text.split("\n")[0]);
 }
 function llmsTxt(origin) {
   return `# LocalBit\n\n> Will an AI model run on this hardware? Memory needed (weights + context cache) and estimated or measured generation speed for local models on graphics cards and Apple computers.\n\n` +
-    `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), compare(a_model, a_hardware, b_model?, b_hardware?, context?), node_log(limit?), get_details(name, kind?), get_test_kit(), submit_result(model, hardware, results, ...), list_known(kind), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?)\n` +
+    `## For agents\n- MCP (Streamable HTTP): ${origin}/mcp - tools: check_fit(model, hardware, context?, quant?, kv_cache?), suggest_models(hardware, context?, min_tokens_per_s?), compare_setups(a_model, a_hardware, b_model?, b_hardware?, context?), get_node_log(limit?), get_details(name, kind?), get_test_kit(), submit_result(model, hardware, results, ...), list_known(kind, query?, limit?, offset?), report_issue(problem, model?, hardware?, observed_tokens_per_s?, observed_memory_gb?, runtime?, note?), get_status(receipt)\n` +
     `- JSON API: ${origin}/api/check?model=...&hardware=...&context=...&quant=... ; ${origin}/api/suggest?hardware=... ; ${origin}/api/models ; ${origin}/api/hardware ; ${origin}/api/measured ; ${origin}/api/compare?a_model=...&a_hardware=...&b_model=... ; ${origin}/api/log ; ${origin}/log.rss ; POST ${origin}/api/report (JSON)\n\n` +
     `## Contribute\n- No measurement for your hardware? ${origin}/test - a 3-minute script (${origin}/t.py, recipe ${origin}/recipe.json) measures a model in your own Ollama, shows what it would send and asks first. Agents: get_test_kit, then submit_result after the user agrees. Community results are labeled "community" (unverified).\n\n` +
     `## Notes\n- Speeds are labeled "estimated" or "measured"; every answer ends with the date the data is current as of (data_as_of in JSON).\n- ${asOfText()}\n- Measured results (RTX 3090): ${origin}/measured (table) and ${origin}/api/measured (JSON)\n- LocalBit records the tool, model and hardware asked about and the client's self-reported name - no IP addresses or personal data.\n- Open data: measurements and tables are CC BY 4.0 (credit LocalBit). Limits: 120 requests/minute per address. Run by ${OWNER.name} (${OWNER.url}). Details: ${origin}/about\n`;
@@ -853,6 +898,7 @@ async function handle(request, env, ctx) {
     if (path === "/api/check") { const o = checkFit(sp); logCall(env, ctx, { kind: "api", ua, tool: "check_fit", model_q: sp.model, hw_q: sp.hardware, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
     if (path === "/api/suggest") { const o = suggest(sp); logCall(env, ctx, { kind: "api", ua, tool: "suggest_models", hw_q: sp.hardware, ...o.log }); return json({ answer: o.text, ...o.data }, o.error ? 404 : 200); }
     // (Nov 26) a fresh agent guessed /api/list_known from the tool's name - answer it like list_known
+    if (path === "/api/status") { const o = await getStatus(env, { receipt: sp.receipt }); logCall(env, ctx, { kind: "api", ua, tool: "get_status", ...o.log }); return json(o.data, o.error && o.data.status !== "not_found" ? 400 : o.error ? 404 : 200); }
     if (path === "/api/list_known") { const o = RUN.list_known({ kind: sp.kind || "hardware", ...sp }); logCall(env, ctx, { kind: "api", ua, tool: "list_known", ...(o.log || {}) }); return json({ answer: o.text, ...o.data }, o.error ? 400 : 200); }
     if (path === "/api/models") return json({ models: DATA.models.map(({ id, name, params_b, active_b, verified }) => ({ id, name, params_b, active_b, verified })) });
     if (path === "/api/hardware") return json({ hardware: DATA.gpus.map(({ id, name, vram_gb, bandwidth_gbs }) => ({ id, name, vram_gb, bandwidth_gbs })) });
