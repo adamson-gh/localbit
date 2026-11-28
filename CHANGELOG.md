@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5.1 - 2026-11-28
+- Tool descriptions: report_issue says it returns a receipt and points to submit_result for full measurements, its problem values are explained; list_known's kind and get_test_kit's return are described.
 - Three more models measured on the RTX 3090: Mistral Small 24B, Gemma 3 27B, Qwen3 30B-A3B. A quality check with two or more whole question groups at zero (the answers didn't come through) is held back rather than published - Qwen3 30B-A3B's first check is held for a re-run.
 - The quality check grades the answer after a model's think block, asks once more with room when a reply is cut off inside one, and re-runs a check whose whole groups came back at zero.
 - The nightly publisher holds back measurements of a model LocalBit has no entry for (named in the night's problems) instead of publishing them under the raw Ollama tag.
