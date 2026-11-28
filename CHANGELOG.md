@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1 - 2026-11-28
+- Each test result now records how much of the model sat in graphics memory (`gpu_pct`, 0-100) beside the speed, not just yes/no; a spilled result says e.g. "78% on GPU". Apple Silicon shares one memory and always reads 100. Test script version 2.
+
 ## 0.5.0 - 2026-11-27
 - Tool names follow verb_noun: compare -> compare_setups, node_log -> get_node_log (the old names still answer, unlisted).
 - list_known takes query, limit and offset (filter and pages, with total and next_offset).

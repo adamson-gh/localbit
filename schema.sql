@@ -34,5 +34,5 @@ CREATE INDEX IF NOT EXISTS misses_ts ON misses (ts);
 -- Measurements people contributed with the 3-minute test (Nov 26): one row per context; never who sent it.
 CREATE TABLE IF NOT EXISTS submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, source TEXT, client TEXT, recipe_version TEXT,
   model_q TEXT, model_id TEXT, quant TEXT, hw_q TEXT, gpu_id TEXT, cards INTEGER, memory_gb REAL, context INTEGER, gen_tps REAL, prompt_tps REAL,
-  all_on_gpu INTEGER, loaded_gb REAL, runtime TEXT, os TEXT, est_tps REAL, ratio REAL, status TEXT, reasons TEXT, receipt TEXT);
+  all_on_gpu INTEGER, loaded_gb REAL, runtime TEXT, os TEXT, est_tps REAL, ratio REAL, status TEXT, reasons TEXT, receipt TEXT, gpu_pct INTEGER);
 CREATE INDEX IF NOT EXISTS submissions_ts ON submissions (ts);

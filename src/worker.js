@@ -11,7 +11,7 @@ import recipeFile from "../data/recipe.json" with { type: "json" };
 import TEST_SCRIPT from "./generated/test_script.js";
 import { findModel, findGpu, estimate, measuredFor, suggestions, suggestModels, closest, familyOf } from "./estimate.js";
 
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const SITE = siteFile.site;
 const OWNER = { name: siteFile.owner, url: siteFile.owner_url };
 const DATA = { models: modelsFile.models, quants: modelsFile.quants, measured: [...(measuredFile.measured || []), ...modelsFile.measured], gpus: gpusFile.gpus };
@@ -108,7 +108,7 @@ const TOOLS = [
       hardware: { type: "string", description: "Graphics card or Mac name, e.g. 'NVIDIA GeForce RTX 4060'." }, memory_gb: { type: "number", description: "Its memory in GB." },
       cards: { type: "integer", description: "Number of identical cards (default 1)." }, runtime: { type: "string", description: "e.g. 'Ollama 0.40.15'." }, os: { type: "string", description: "Windows, macOS or Linux." },
       recipe_version: { type: "string" },
-      results: { type: "array", items: { type: "object", required: ["context", "gen_tps"], properties: { context: { type: "integer" }, gen_tps: { type: "number" }, prompt_tps: { type: "number" }, all_on_gpu: { type: "boolean" }, loaded_gb: { type: "number" } } } } } },
+      results: { type: "array", items: { type: "object", required: ["context", "gen_tps"], properties: { context: { type: "integer" }, gen_tps: { type: "number" }, prompt_tps: { type: "number" }, all_on_gpu: { type: "boolean" }, gpu_pct: { type: "number", description: "share of the loaded model in graphics memory, 0-100 (Apple Silicon: 100)" }, loaded_gb: { type: "number" } } } } } },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false, idempotentHint: false } },
   { name: "get_status", title: "Status of a submission or report",
     description: "Follows up a measurement sent with submit_result or a report sent with report_issue, by the receipt either one returned (e.g. 'S-7K3Q9X' or 'R-2M8D4P'): a submission is accepted (it appears in answers, labelled unverified, after the nightly update) or held for review; a report is received, fixed or closed. Use this when the user asks what happened to a result or report they sent earlier. Receipts are random codes - nothing about who sent it is kept or shown.",
@@ -302,9 +302,12 @@ function checkSubmission(b) {
   if (g && b.memory_gb && g.vram_gb && Math.abs(+b.memory_gb - g.vram_gb) / g.vram_gb > 0.25) reasons.push(`reported memory ${b.memory_gb} GB differs from the card's ${g.vram_gb} GB`);
   for (const r of res) {
     const ctx = Math.round(+r.context || 0), tps = +r.gen_tps;
-    const rr = { context: ctx, gen_tps: tps, prompt_tps: Number.isFinite(+r.prompt_tps) ? +r.prompt_tps : null, all_on_gpu: r.all_on_gpu === undefined ? null : !!r.all_on_gpu, loaded_gb: Number.isFinite(+r.loaded_gb) ? +r.loaded_gb : null, reasons: [] };
+    const rr = { context: ctx, gen_tps: tps, prompt_tps: Number.isFinite(+r.prompt_tps) ? +r.prompt_tps : null, all_on_gpu: r.all_on_gpu === undefined ? null : !!r.all_on_gpu, loaded_gb: Number.isFinite(+r.loaded_gb) ? +r.loaded_gb : null,
+      gpu_pct: r.gpu_pct !== undefined && r.gpu_pct !== null && Number.isFinite(+r.gpu_pct) ? Math.max(0, Math.min(100, Math.round(+r.gpu_pct))) : null, reasons: [] };
+    if (rr.all_on_gpu === null && rr.gpu_pct !== null) rr.all_on_gpu = rr.gpu_pct >= 100;
     if (!(ctx >= 512 && ctx <= 1048576) || !(tps > 0.05 && tps < 5000)) { rr.reasons.push("result out of range"); rows.push(rr); continue; }
-    if (rr.all_on_gpu === false) rr.reasons.push("model was partly off the graphics card");
+    // (0.5.1, asked on r/ollama) how much, not just whether
+    if (rr.all_on_gpu === false) rr.reasons.push(rr.gpu_pct !== null ? `model was partly off the graphics card (${rr.gpu_pct}% on GPU)` : "model was partly off the graphics card");
     if (m && g) {
       const e = estimate(m, g, { context: ctx, quant: b.quant }, DATA.quants);
       rr.est_tps = e.gen_tokens_per_s; rr.ratio = +(tps / e.gen_tokens_per_s).toFixed(2);
@@ -329,11 +332,11 @@ function submitResult(env, ctx, b, source, client) {
   const now = new Date().toISOString(), rc = receipt("S");
   if (env && env.DB) {
     try {
-      for (const r of c.rows) ctx.waitUntil(env.DB.prepare("INSERT INTO submissions (ts, source, client, recipe_version, model_q, model_id, quant, hw_q, gpu_id, cards, memory_gb, context, gen_tps, prompt_tps, all_on_gpu, loaded_gb, runtime, os, est_tps, ratio, status, reasons, receipt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      for (const r of c.rows) ctx.waitUntil(env.DB.prepare("INSERT INTO submissions (ts, source, client, recipe_version, model_q, model_id, quant, hw_q, gpu_id, cards, memory_gb, context, gen_tps, prompt_tps, all_on_gpu, loaded_gb, runtime, os, est_tps, ratio, status, reasons, receipt, gpu_pct) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
         .bind(now, source, String(client || "").slice(0, 60), String(b.recipe_version || "").slice(0, 10), String(b.model).slice(0, 80), c.m ? c.m.id : null, String(b.quant || "").slice(0, 20) || null,
               String(b.hardware).slice(0, 80), c.g ? c.g.id : null, +b.cards || 1, Number.isFinite(+b.memory_gb) ? +b.memory_gb : null, r.context, r.gen_tps, r.prompt_tps, r.all_on_gpu === null ? null : (r.all_on_gpu ? 1 : 0),
               r.loaded_gb, String(b.runtime || "").slice(0, 40), String(b.os || "").slice(0, 20), r.est_tps ?? null, r.ratio ?? null, r.reasons.length || c.status === "flagged" ? "flagged" : "community",
-              [...c.reasons, ...r.reasons].join("; ").slice(0, 240) || null, rc).run().catch(() => {}));
+              [...c.reasons, ...r.reasons].join("; ").slice(0, 240) || null, rc, r.gpu_pct).run().catch(() => {}));
     } catch {}
   }
   const what = `${c.m ? c.m.name : b.model} on ${c.g ? c.g.name : b.hardware}`;

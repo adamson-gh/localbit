@@ -72,7 +72,7 @@ def main():
         st["problems"].append("the log backup from Cloudflare failed")
     for name, sql in (("asks", "SELECT DISTINCT model_q, hw_q, context, quant FROM calls WHERE kind IN ('mcp_call','api','check_page','compare_page') AND model_q IS NOT NULL AND hw_q IS NOT NULL"),
                       ("reports", "SELECT ts, problem, model_q, hw_q, context, obs_tps, obs_mem_gb, runtime, note FROM reports"),
-                      ("submissions", "SELECT ts, model_id, model_q, quant, gpu_id, hw_q, cards, context, gen_tps, prompt_tps, all_on_gpu, runtime, os, est_tps, ratio, status, reasons FROM submissions")):
+                      ("submissions", "SELECT ts, model_id, model_q, quant, gpu_id, hw_q, cards, context, gen_tps, prompt_tps, all_on_gpu, gpu_pct, runtime, os, est_tps, ratio, status, reasons FROM submissions")):
         r = npx('wrangler d1 execute localbit --remote --json --command "%s"' % sql)
         try:
             rows = json.loads(r.stdout[r.stdout.index("["):])[0]["results"]

@@ -14,7 +14,7 @@ import json, os, platform, re, statistics, subprocess, sys, time, urllib.error, 
 
 SITE = os.environ.get("LOCALBIT_SITE", "https://localbit.adamson-cf.workers.dev")
 OLLAMA = os.environ.get("LOCALBIT_OLLAMA", "http://127.0.0.1:11434")
-VERSION = "1"
+VERSION = "2"
 
 
 def interactive():
@@ -385,6 +385,10 @@ def run():
             if ps:
                 row["all_on_gpu"] = ps.get("size_vram", 0) >= ps.get("size", 1)
                 row["loaded_gb"] = round(ps.get("size", 0) / 2**30, 2)
+                # (Nov 28, a builder on r/ollama: "Does a result also record how much of the model ran on GPU versus CPU?") the share,
+                # not just yes/no - it explains a slow result on a model that only just fits. Apple Silicon shares one memory: always 100.
+                if ps.get("size"):
+                    row["gpu_pct"] = max(0, min(100, round(100.0 * ps.get("size_vram", 0) / ps["size"])))
         except Exception:
             pass
         results.append(row)
@@ -394,7 +398,8 @@ def run():
     for r in results:
         say("%-16s %s%s%s" % ("%s context" % format(r["context"], ","), bold("%.1f tokens/s" % r["gen_tps"]) if r.get("gen_tps") else "-",
                               ("   reading %s tokens/s" % format(int(r["prompt_tps"]), ",")) if r.get("prompt_tps") else "",
-                              "" if r.get("all_on_gpu") in (True, None) else yellow("   partly in system memory")))
+                              "" if r.get("all_on_gpu") in (True, None) else yellow("   %s on the graphics card, the rest in system memory" % (
+                                  "%d%%" % r["gpu_pct"] if r.get("gpu_pct") is not None else "partly"))))
     sub = {"recipe_version": R.get("recipe_version"), "model": model, "quant": quant, "hardware": hw["hardware"], "memory_gb": hw["memory_gb"],
            "cards": hw["cards"], "runtime": "Ollama " + str(ver or "?"), "os": platform.system(), "results": results, "client": "localbit-test/" + VERSION}
     # (Nov 26, owner: "it leaves me at the bottom with numbers on the screen ... can we finish it better?") a readable list of

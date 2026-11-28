@@ -165,6 +165,15 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("an implausible speed is flagged, not published", s2 === 200 && a2.status === "flagged" && /far from the expected/.test(a2.answer), a2);
   const [s3, a3] = await post({ ...good, results: [{ context: 4096, gen_tps: 40, all_on_gpu: false }] });
   check("a run partly off the card is flagged", a3.status === "flagged" && /partly off/.test(a3.answer), a3);
+  // (0.5.1, asked on r/ollama: "how much of the model ran on GPU versus CPU?")
+  seen.length = 0;
+  const [s5, a5] = await post({ ...good, results: [{ context: 4096, gen_tps: 40, gpu_pct: 78 }] });
+  const ins = seen.find(([q]) => /INSERT INTO submissions/.test(q));
+  check("the GPU share is kept beside the speed and named in the flag", a5.status === "flagged" && /78% on GPU/.test(a5.answer) && ins && /gpu_pct/.test(ins[0]) && ins[1].includes(78), [a5, ins && ins[1]]);
+  const [s6, a6] = await post({ ...good, results: [{ context: 4096, gen_tps: 40, gpu_pct: 100 }] });
+  check("100% on GPU counts as all on the card", a6.status === "community", a6);
+  const [s7, a7] = await post({ ...good, results: [{ context: 4096, gen_tps: 40, gpu_pct: 250 }] });
+  check("a share out of range is clamped, not trusted beyond 100", a7.status === "community", a7);
   const [s4, a4] = await post({ model: "x" });
   check("an incomplete submission is rejected with what's needed", s4 === 400 && /needs model, hardware/.test(a4.answer), a4); }
 { const [sk, jk] = await rpc({ jsonrpc: "2.0", id: 120, method: "tools/call", params: { name: "get_test_kit", arguments: {} } });
