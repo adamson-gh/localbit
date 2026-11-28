@@ -200,6 +200,8 @@ def done_recently(model, days=30, test="gen", ver=None):
         if r.get("model") == model and r.get("test") == test and (r.get("gen_tps") if test == "gen" else r.get("n")):
             if test == "quiz" and r.get("quiz_version", 1) != QUIZ_VERSION:   # (Nov 26) a new version of the check is re-run
                 continue
+            if test == "quiz" and sum(1 for v in (r.get("by_cat") or {}).values() if v == 0) >= 2:   # (Nov 28) answers didn't come through - re-run
+                continue
             if ver and test == "gen" and (r.get("ollama") != ver.get("ollama") or r.get("driver") != ver.get("driver")):
                 return False
             return (time.time() - datetime.fromisoformat(r["date"]).timestamp()) < days * 86400
@@ -234,6 +236,7 @@ def quiz(model, ver):
     meta = model_meta(model)
     unload_all()
     got, missed = {}, []
+    diag = {"empty": 0, "think_tags": 0}
     t0 = time.time()
     for q in QZ.Q:
         if should_stop(NOW):
@@ -248,13 +251,27 @@ def quiz(model, ver):
             log(model, "quiz", q["id"], "failed:", type(e).__name__); return None, False
         if r.get("error"):
             log(model, "quiz failed:", str(r["error"])[:120]); return None, False
-        ok = QZ.grade(q, r.get("response", ""))
+        # (Nov 28: qwen3:30b 11/60, math and instructions 0) a model that thinks anyway puts <think>...</think> before its answer, or
+        # runs out of room inside it - the answer is what follows the block; empty answers and think blocks are counted in the row
+        txt = r.get("response", "") or ""
+        if "<think>" in txt:
+            diag["think_tags"] += 1
+            txt = re.sub(r"(?s)<think>.*?(?:</think>|$)", "", txt).strip()
+            if not txt:   # it ran out of room while thinking: once more with room for the thinking and the answer
+                try:
+                    r2 = requests.post(OLLAMA + "/api/generate", json=dict(body, options=dict(body["options"], num_predict=2048)), timeout=900).json()
+                    txt = re.sub(r"(?s)<think>.*?(?:</think>|$)", "", r2.get("response", "") or "").strip()
+                except Exception as e:
+                    log(model, "quiz", q["id"], "retry failed:", type(e).__name__)
+        if not txt.strip():
+            diag["empty"] += 1
+        ok = QZ.grade(q, txt)
         got[q["cat"]] = got.get(q["cat"], 0) + (1 if ok else 0)
         if not ok:
             missed.append(q["id"])
     n = len(QZ.Q)
     row = {"date": datetime.now().isoformat(timespec="seconds"), "gpu": "rtx-3090", "model": model, "test": "quiz", "n": n,
-           "right": n - len(missed), "by_cat": got, "missed": missed, "quiz_version": QZ.VERSION, "secs": round(time.time() - t0), **meta, **ver}
+           "right": n - len(missed), "by_cat": got, "missed": missed, "quiz_version": QZ.VERSION, "secs": round(time.time() - t0), **diag, **meta, **ver}
     with open(RUNS, "a", encoding="utf-8") as f:
         f.write(json.dumps(row) + "\n")
     log(model, "quiz", row["right"], "/", n, got)

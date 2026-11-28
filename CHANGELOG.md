@@ -2,6 +2,7 @@
 
 ## 0.5.1 - 2026-11-28
 - Three more models measured on the RTX 3090: Mistral Small 24B, Gemma 3 27B, Qwen3 30B-A3B. A quality check with two or more whole question groups at zero (the answers didn't come through) is held back rather than published - Qwen3 30B-A3B's first check is held for a re-run.
+- The quality check grades the answer after a model's think block, asks once more with room when a reply is cut off inside one, and re-runs a check whose whole groups came back at zero.
 - The nightly publisher holds back measurements of a model LocalBit has no entry for (named in the night's problems) instead of publishing them under the raw Ollama tag.
 - Test script 3: the GPU share is checked against the model's size on disk too - Ollama's llama.cpp runner can leave the layers it keeps on the processor out of its loaded size and report "100% GPU" for a model that's mostly on the processor.
 - Each test result now records how much of the model sat in graphics memory (`gpu_pct`, 0-100) beside the speed, not just yes/no; a spilled result says e.g. "78% on GPU". Apple Silicon shares one memory and always reads 100. Test script version 2.

@@ -116,4 +116,23 @@ _rr.write_text("".join(json.dumps({"date": "2099-01-01T03:00:00", "model": m, "c
 _hp = subprocess.run([sys.executable, str(bench / "publish.py")], env=dict(os.environ, LOCALBIT_RUNS=str(_rr), LOCALBIT_MEASURED=str(tmp / "held_out.json"), LOCALBIT_MODELS=str(_tm)), capture_output=True, text=True)
 _ho = json.loads((tmp / "held_out.json").read_text(encoding="utf-8"))["measured"]
 check("publish: a model LocalBit knows goes out; one known only as another model's alias is held back and named (its quality isn't that model's)", [x["model"] for x in _ho] == ["made-up:7b"] and "held back" in _hp.stdout and "unknown:14b" in _hp.stdout, (_ho, _hp.stdout))
+# (Nov 28: qwen3:30b scored 11/60 - its answers sat behind a think block) the answer after <think>...</think> is graded; a reply cut off
+# inside the block is asked once more with room; the row counts think blocks and empty answers. Made-up replies, no Ollama.
+import quiz as _QZ
+class _R:
+    def __init__(self, j): self._j = j
+    def json(self): return self._j
+def _fake_post(url, json=None, timeout=None):
+    q = next(x for x in _QZ.Q if x["prompt"] == json["prompt"])
+    if json["options"]["num_predict"] < 1000:
+        return _R({"response": "<think>let me work this out step by step and"})
+    return _R({"response": "<think>done</think>\n" + str(q["answer"])})
+_saved = (rb.requests.post, rb.RUNS, rb.should_stop, rb.unload_all, rb.model_meta)
+rb.requests.post, rb.RUNS, rb.should_stop, rb.unload_all, rb.model_meta = _fake_post, tmp / "think_runs.jsonl", (lambda now: False), (lambda: None), (lambda m: {})
+try:
+    _row, _st = rb.quiz("made-up-thinker:7b", {})
+finally:
+    rb.requests.post, rb.RUNS, rb.should_stop, rb.unload_all, rb.model_meta = _saved
+check("a think block is skipped and a cut-off one asked again: the answers are graded", _row and _row["by_cat"].get("math") == sum(1 for q in _QZ.Q if q["cat"] == "math" and q["kind"] == "num") and _row["think_tags"] == 60, _row and {k: _row[k] for k in ("by_cat", "think_tags", "empty")})
+check("a check with two groups at zero doesn't count as done - it's re-run", (lambda f: (f.write_text(json.dumps({"date": _dt.now().isoformat(timespec="seconds"), "model": "z:1b", "test": "quiz", "n": 60, "quiz_version": rb.QUIZ_VERSION, "by_cat": {"math": 0, "facts": 2, "code": 9, "instructions": 0}}) + "\n"), setattr(rb, "RUNS", f), not rb.done_recently("z:1b", test="quiz"))[-1])(tmp / "zero_runs.jsonl"))
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)
