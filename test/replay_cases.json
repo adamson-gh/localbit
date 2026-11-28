@@ -996,6 +996,18 @@
     "verdict": "fits"
    },
    "added": "2026-11-27"
+  },
+  {
+   "model": "qwen3:8b",
+   "hardware": "rtx 3090",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3-8b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-28"
   }
  ]
 }

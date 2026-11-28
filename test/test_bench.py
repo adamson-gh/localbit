@@ -45,7 +45,7 @@ check("only numbers and versions are recorded", all(set(x) <= {"date", "gpu", "m
 check("nothing was downloaded (the model was already there)", not (tmp / "pulled.json").exists())
 check("the assistant's model goes back on the card at the end, with its context size", any(c[1] == "/api/generate" and c[2].get("model") == "qwen3.8:27b" and c[2].get("keep_alive") == -1 and c[2]["options"]["num_ctx"] == 16384 for c in calls))
 # publish - into the temp folder (tests never write the real data files)
-penv = dict(os.environ, LOCALBIT_RUNS=str(tmp / "runs.jsonl"), LOCALBIT_MEASURED=str(tmp / "measured.json"))
+penv = dict(os.environ, LOCALBIT_RUNS=str(tmp / "runs.jsonl"), LOCALBIT_MEASURED=str(tmp / "measured.json"), LOCALBIT_MODELS="")
 p = subprocess.run([sys.executable, str(bench / "publish.py")], env=penv, capture_output=True, text=True, timeout=60)
 pub = json.loads((tmp / "measured.json").read_text())["measured"] if (tmp / "measured.json").exists() else []
 check("publish: one row per context, the middle of the runs, with the quality score", len(pub) == 3 and pub[0]["gen_tps"] == 64.0 and pub[0]["runs"] == 3 and pub[0].get("quality_n") == 60, (pub[:1], p.stderr[-200:]))
@@ -54,6 +54,7 @@ check("the real data files are untouched", not (ROOT / "data" / "runs_3090.jsonl
 import importlib.util as _u
 from datetime import datetime as _dt
 os.environ["LOCALBIT_BUSY_LOG"] = str(tmp / "access.log")
+os.environ["LOCALBIT_MODELS"] = ""   # (Nov 28) publish.py holds back models LocalBit doesn't know - these made-up ones aren't in data/models.json
 spec = _u.spec_from_file_location("rb", bench / "run_3090.py"); rb = _u.module_from_spec(spec); spec.loader.exec_module(rb)
 now = _dt.now().strftime("%m-%d %H:%M:%S")
 (tmp / "access.log").write_text(now + " local     POST /chat                     200 900ms\n", encoding="utf-8")
@@ -94,4 +95,12 @@ spec3 = _u.spec_from_file_location("rb3", bench / "run_3090.py"); rb3 = _u.modul
 rb3.note_failure("made-up:7b", "made-up crash"); check("one failure: tried again next night", rb3.recent_failures("made-up:7b") == 1)
 rb3.note_failure("made-up:7b", "made-up crash"); check("two failures in a week: skipped", rb3.recent_failures("made-up:7b") == 2)
 srv.shutdown()
+# (Nov 28) a measured Ollama tag LocalBit has no model for is held back and named; a known alias is published under its model
+_tm = tmp / "models_t.json"; _tm.write_text(json.dumps({"models": [{"id": "made-up:7b", "aliases": []}, {"id": "other-14b", "aliases": ["unknown:14b"]}]}), encoding="utf-8")
+_rr = tmp / "held_runs.jsonl"
+_rr.write_text("".join(json.dumps({"date": "2099-01-01T03:00:00", "model": m, "ctx": 4096, "test": "gen", "gen_tps": 50 + k, "all_on_gpu": True}) + "\n"
+                       for m in ("made-up:7b", "unknown:14b") for k in (0, 1, 2)), encoding="utf-8")
+_hp = subprocess.run([sys.executable, str(bench / "publish.py")], env=dict(os.environ, LOCALBIT_RUNS=str(_rr), LOCALBIT_MEASURED=str(tmp / "held_out.json"), LOCALBIT_MODELS=str(_tm)), capture_output=True, text=True)
+_ho = json.loads((tmp / "held_out.json").read_text(encoding="utf-8"))["measured"]
+check("publish: a model LocalBit knows goes out; one known only as another model's alias is held back and named (its quality isn't that model's)", [x["model"] for x in _ho] == ["made-up:7b"] and "held back" in _hp.stdout and "unknown:14b" in _hp.stdout, (_ho, _hp.stdout))
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)
