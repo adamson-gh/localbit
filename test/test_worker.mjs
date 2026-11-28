@@ -102,7 +102,7 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("compare with nothing to compare against says so", j3.result.isError && /second model/.test(j3.result.content[0].text));
   const [s4, j4] = await rpc({ jsonrpc: "2.0", id: 73, method: "tools/call", params: { name: "get_node_log", arguments: {} } });
   const mj = JSON.parse(fs.readFileSync(new URL("../data/measured.json", import.meta.url)));
-  check("node_log lists each measured model once", j4.result.structuredContent.readings.length === new Set(mj.measured.map(r => r.model)).size, j4.result.structuredContent.readings.length);
+  check("node_log lists each measured model once (the newest 10 by default)", j4.result.structuredContent.readings.length === Math.min(10, new Set(mj.measured.map(r => r.model)).size), j4.result.structuredContent.readings.length);
   const lp = await call("/log"), rs = await call("/log.rss"), cp = await call("/compare?a_model=gemma%204%20e4b&a_hardware=rtx%203090&b_model=qwen3.8%2027b");
   check("pages: /log, /log.rss (valid feed) and /compare", lp.status === 200 && /Node log/.test(await lp.text()) && /<rss version="2.0">/.test(await rs.text()) && /is faster/.test(await cp.text())); }
 { const r1 = await rpc({ jsonrpc: "2.0", id: 80, method: "tools/call", params: { name: "check_fit", arguments: { model: "deepseek r1 14b", hardware: "rtx 3090" } } });

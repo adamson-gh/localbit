@@ -48,8 +48,21 @@ check("the assistant's model goes back on the card at the end, with its context 
 penv = dict(os.environ, LOCALBIT_RUNS=str(tmp / "runs.jsonl"), LOCALBIT_MEASURED=str(tmp / "measured.json"), LOCALBIT_MODELS="")
 p = subprocess.run([sys.executable, str(bench / "publish.py")], env=penv, capture_output=True, text=True, timeout=60)
 pub = json.loads((tmp / "measured.json").read_text())["measured"] if (tmp / "measured.json").exists() else []
-check("publish: one row per context, the middle of the runs, with the quality score", len(pub) == 3 and pub[0]["gen_tps"] == 64.0 and pub[0]["runs"] == 3 and pub[0].get("quality_n") == 60, (pub[:1], p.stderr[-200:]))
+check("publish: one row per context, the middle of the runs", len(pub) == 3 and pub[0]["gen_tps"] == 64.0 and pub[0]["runs"] == 3, (pub[:1], p.stderr[-200:]))
+check("the made-up model sent empty answers: its quality check is held back, not published as 0%", all("quality_pct" not in x for x in pub) and "quality held back" in p.stdout, (pub[:1], p.stdout[-200:]))
 check("the real data files are untouched", not (ROOT / "data" / "runs_3090.jsonl").exists() or "made-up" not in (ROOT / "data" / "runs_3090.jsonl").read_text())
+# (Nov 28) a real check is published; a newer one with two or more whole groups at zero (the answers didn't come through) isn't
+_q = json.loads([l for l in (tmp / "runs.jsonl").read_text().splitlines() if '"quiz"' in l][-1])
+def _pub(**kw):
+    q = dict(_q, **kw)
+    with open(tmp / "runs.jsonl", "a") as _f:
+        _f.write(json.dumps(q) + "\n")
+    r = subprocess.run([sys.executable, str(bench / "publish.py")], env=penv, capture_output=True, text=True, timeout=60)
+    return json.loads((tmp / "measured.json").read_text())["measured"], r.stdout
+pub2, _ = _pub(right=40, by_cat={"math": 9, "facts": 12, "code": 9, "instructions": 10}, date=_q["date"][:10] + "T23:00:00")
+check("a real quality check goes out with the speeds", pub2 and pub2[0].get("quality_pct") == 67 and pub2[0].get("quality_n") == 60, pub2[:1])
+pub3, out3 = _pub(right=11, by_cat={"math": 0, "facts": 2, "code": 9, "instructions": 0}, date=_q["date"][:10] + "T23:59:59")
+check("a newer one with two groups at zero is held back and named", all("quality_pct" not in x for x in pub3) and "quality held back" in out3, (pub3[:1], out3[-200:]))
 # who counts as "in use": a person on the phone, not the machine's own scripts
 import importlib.util as _u
 from datetime import datetime as _dt

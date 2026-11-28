@@ -1008,6 +1008,90 @@
     "verdict": "fits"
    },
    "added": "2026-11-28"
+  },
+  {
+   "model": "llama 3.1 70b",
+   "hardware": "rtx-4060",
+   "context": 8192,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.3-70b",
+    "gpu_id": "rtx-4060",
+    "verdict": "does_not_fit"
+   },
+   "added": "2026-11-28"
+  },
+  {
+   "model": "qwen2.5 32b",
+   "hardware": "rtx 3090",
+   "context": 16384,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen2.5-32b",
+    "gpu_id": "rtx-3090",
+    "verdict": "tight"
+   },
+   "added": "2026-11-28"
+  },
+  {
+   "model": "gemma 3 27b",
+   "hardware": "rtx 3090",
+   "context": 16384,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "gemma-3-27b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-28"
+  },
+  {
+   "model": "mistral small 24b",
+   "hardware": "rtx 3090",
+   "context": 16384,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "mistral-small-24b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-28"
+  },
+  {
+   "model": "qwen3.8-27b",
+   "hardware": "rtx 3090",
+   "context": 32768,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "qwen3.8-27b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-28"
+  },
+  {
+   "model": "llama3.1:8b",
+   "hardware": "rtx 4060",
+   "context": 4096,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.1-8b",
+    "gpu_id": "rtx-4060",
+    "verdict": "fits"
+   },
+   "added": "2026-11-28"
+  },
+  {
+   "model": "llama 3.1 8b",
+   "hardware": "rtx 3090",
+   "context": 16384,
+   "quant": "Q4_K_M",
+   "expect": {
+    "model_id": "llama-3.1-8b",
+    "gpu_id": "rtx-3090",
+    "verdict": "fits"
+   },
+   "added": "2026-11-28"
   }
  ]
 }

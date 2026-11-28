@@ -22,6 +22,11 @@ def main():
     for r in rows:
         if r.get("test") == "quiz" and r.get("n") and r.get("quiz_version", 1) == qv:
             quizzes[r["model"]] = r
+    # (Nov 28: qwen3:30b scored 11/60 - math 0, instructions 0 - while its smaller siblings scored 68-73) a check with two or more
+    # whole groups at zero means the answers didn't come through (thinking, empty replies), not a weak model: its score waits
+    suspect = sorted(m for m, r in quizzes.items() if sum(1 for v in (r.get("by_cat") or {}).values() if v == 0) >= 2)
+    for m in suspect:
+        quizzes.pop(m)
     out = []
     # (Nov 28: deepseek-r1:14b was measured but has no LocalBit model of its own - its rows went out under the Ollama tag, the stats
     # test found a measurement with no estimate, and the night's deploy stopped) only models LocalBit knows are published; the rest wait
@@ -59,6 +64,8 @@ def main():
     OUT.write_text(json.dumps({"_about": "Measured on LocalBit's RTX 3090 (Windows, Ollama): middle of 3 runs per model and context, temperature 0, made-up prompts. gpu_mem_peak_gib is the whole card's peak use (the desktop adds about 0.5-1 GB). power_w is the card's average draw while generating. quality_pct is the share of LocalBit's 60 script-graded questions answered right (math, instructions, facts, code; 4K context, temperature 0, thinking off). License: CC BY 4.0 - credit LocalBit.",
                                                            "measured": out}, indent=1), encoding="utf-8")
     print("PUBLISH rows", len(out), "models", len({o["model"] for o in out}))
+    if suspect:
+        print("PUBLISH quality held back (two or more groups at zero - the answers didn't come through): " + ", ".join(suspect))
     if held:
         print("PUBLISH held back (no LocalBit model id yet - add it to data/models.json and bench/publish.py TAG_TO_ID): " + ", ".join(sorted(held)))
 
