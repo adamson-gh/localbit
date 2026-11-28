@@ -264,4 +264,6 @@ check("the log holds what was asked and the agent's name - and no address", flat
   check("get_status: an unknown receipt is not found; a malformed one says what a receipt looks like", gx.result.isError && /No submission/.test(gx.result.content[0].text) && gb.result.isError && /like 'S-7K3Q9X'/.test(gb.result.content[0].text));
   const two = new Set(Array.from({ length: 50 }, () => 0).map(() => null));
   check("receipts are random codes, not counts", store.submissions[0].receipt !== "S-000001" && !/\d{6}/.test(rc)); }
+{ const r = await worker.fetch(new Request("https://localbit.example.workers.dev/test"), {}, { waitUntil: () => {} }); const h = await r.text();
+  check("(0.5.1) the test page has a Command Prompt line beside PowerShell", /Command Prompt instead/.test(h) && h.includes("cd /d %TEMP% &amp;&amp; curl -sLo t.py") && h.includes("irm "), h.slice(0, 100)); }
 console.log(`\n${ok} passed, ${bad} failed`); process.exit(bad ? 1 : 0);

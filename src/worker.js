@@ -284,6 +284,7 @@ function getTestKit() {
     `1. Needs Python 3.8+ and Ollama with the model pulled.`, `2. Copy-paste one line - it downloads the script and runs it (source: ${siteFile.repo}/blob/main/bench/localbit_test.py):`,
     `   Mac/Linux: curl -sO ${SITE}/t.py && python3 t.py`,
     `   Windows (PowerShell): cd $env:TEMP; irm ${SITE}/t.py -OutFile t.py; py t.py`,
+    `   Windows (Command Prompt): cd /d %TEMP% && curl -sLo t.py ${SITE}/t.py && py t.py`,
     `   If you have a shell tool and the user agrees: run it with --model <ollama tag> --dry-run (sends nothing), show the user the printed JSON, and only if they say yes send it with submit_result.`,
     `3. Pick a model from the list (or add --model <ollama tag>; --dry-run measures without sending).`,
     `It shows exactly what would be sent - model, card or Mac name and memory, speeds, Ollama version, OS - and asks yes/no. No names, file paths or IPs.`,
@@ -612,12 +613,15 @@ const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 // (Nov 26, owner: "less intimidating" / "clean up unnecessary text") one line for the visitor's own system, a copy button, the rest folded away
 function testPage(origin) {
   const mac = `curl -sO ${origin}/t.py && python3 t.py`, win = `cd $env:TEMP; irm ${origin}/t.py -OutFile t.py; py t.py`;   // (Nov 26, owner's own run: PowerShell opened as admin starts in system32, which can't be written)
-  const line = (id, label, how, cmd) => `<div class="os" id="${id}"><p style="margin:0 0 6px"><b>${label}</b> <span class="small">${how}</span></p>
-<div class="cmd"><code>${esc(cmd)}</code><button type="button" class="copy" data-cmd="${esc(cmd)}">Copy</button></div></div>`;
+  // (Nov 28, owner's own run: a new Windows terminal opened as Command Prompt, and the PowerShell line failed there) one for each
+  const cmdp = `cd /d %TEMP% && curl -sLo t.py ${origin}/t.py && py t.py`;
+  const row = (cmd) => `<div class="cmd"><code>${esc(cmd)}</code><button type="button" class="copy" data-cmd="${esc(cmd)}">Copy</button></div>`;
+  const line = (id, label, how, cmd, alt) => `<div class="os" id="${id}"><p style="margin:0 0 6px"><b>${label}</b> <span class="small">${how}</span></p>
+${row(cmd)}${alt ? `<p style="margin:10px 0 6px" class="small">${alt[0]}</p>${row(alt[1])}` : ""}</div>`;
   return page("Measure your hardware - LocalBit", `<h1>Measure your hardware</h1><p class="lede">3-5 minutes, same recipe as the node. Nothing is sent unless you say yes.</p>
 <div class="card"><p style="margin-top:0" class="small">Needs <a href="https://ollama.com">Ollama</a> with a model pulled, and Python 3.8+.</p>
 ${line("os-mac", "Mac / Linux", "- open Terminal (⌘ Space, type Terminal), paste, press Enter", mac)}
-${line("os-win", "Windows", "- open PowerShell (Start, type PowerShell), paste, press Enter", win)}
+${line("os-win", "Windows", "- open PowerShell (Start, type PowerShell), paste, press Enter", win, ["Command Prompt instead (the line starts with <code>C:\\...&gt;</code>, no <code>PS</code>)?", cmdp])}
 <p class="small" id="os-other" style="margin-bottom:0"><a href="#" id="show-all">Other system</a> · <code>py</code> not found? use <code>python t.py</code> · no Python? <a href="https://www.python.org/downloads/">python.org</a></p></div>
 <h2>Or ask your AI assistant</h2><p>Using Claude Code, Cursor or another coding agent? Ask it to <b>run the LocalBit test</b>. It gets the steps from LocalBit and asks you before sharing.</p>
 <h2>What it does</h2><ul class="small"><li>Lists your Ollama models; you pick one. Detects your card or Mac.</li>

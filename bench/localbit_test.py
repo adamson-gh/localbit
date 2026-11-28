@@ -409,7 +409,7 @@ def run():
     for k, v in (("model", "%s%s" % (model, (" %s %s" % (DOT, quant)) if quant else "")),
                  ("hardware", "%s%s %s %d card%s" % (hw["hardware"], (" %s %g GB" % (DOT, hw["memory_gb"])) if hw.get("memory_gb") else "", DOT, hw["cards"], "" if hw["cards"] == 1 else "s")),
                  ("software", "Ollama %s %s %s" % (ver or "?", DOT, platform.system())), ("results", res),
-                 ("also", "whether it fit in the card's memory, how much was loaded, recipe version %s" % R.get("recipe_version"))):
+                 ("also", "how much of it was on the graphics card, how much was loaded, recipe version %s" % R.get("recipe_version"))):
         say("%-10s %s" % (k, v))
     say(dim("Never names, usernames, file paths, IP addresses or serial numbers.") + ("" if (dry or "--json" in args) else dim("  (add --json to see the exact data)")))
     if dry or "--json" in args:
