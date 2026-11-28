@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.5.1 - 2026-11-28
+- Test script 3: the GPU share is checked against the model's size on disk too - Ollama's llama.cpp runner can leave the layers it keeps on the processor out of its loaded size and report "100% GPU" for a model that's mostly on the processor.
 - Each test result now records how much of the model sat in graphics memory (`gpu_pct`, 0-100) beside the speed, not just yes/no; a spilled result says e.g. "78% on GPU". Apple Silicon shares one memory and always reads 100. Test script version 2.
 - The /test page and get_test_kit give a Windows Command Prompt line beside the PowerShell one (the PowerShell line fails in Command Prompt).
 

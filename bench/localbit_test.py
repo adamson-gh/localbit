@@ -14,7 +14,7 @@ import json, os, platform, re, statistics, subprocess, sys, time, urllib.error, 
 
 SITE = os.environ.get("LOCALBIT_SITE", "https://localbit.adamson-cf.workers.dev")
 OLLAMA = os.environ.get("LOCALBIT_OLLAMA", "http://127.0.0.1:11434")
-VERSION = "2"
+VERSION = "3"
 
 
 def interactive():
@@ -175,13 +175,29 @@ def unload(name, wait=20):
         time.sleep(0.5)
 
 
+FILE_BYTES = {}   # model -> its size on disk (/api/tags), filled in main()
+
+
+def gpu_share(ps, file_bytes=0):
+    """Percent of the model in the card's memory from /api/ps. (Nov 28, owner's spill test: a model forced half onto the processor
+    with num_gpu showed size == size_vram = 223 MB, "100% GPU", for a 6.1 GB model - Ollama's llama.cpp runner leaves the layers it
+    keeps on the processor out of "size".) A loaded size under 60% of the file means the rest is outside the card: count against
+    the file instead."""
+    size, vram = ps.get("size") or 0, ps.get("size_vram") or 0
+    denom = file_bytes if file_bytes and size < 0.6 * file_bytes else size
+    return max(0, min(100, round(100.0 * vram / denom))) if denom else None
+
+
 def on_card(model):
     """True/False whether the loaded copy sits fully in the card's memory; None when Ollama doesn't say."""
     try:
         m = next((m for m in http(OLLAMA + "/api/ps", timeout=10).get("models", []) if m.get("name") == model), None)
     except Exception:
         return None
-    return None if not m else m.get("size_vram", 0) >= m.get("size", 1)
+    if not m:
+        return None
+    pct = gpu_share(m, FILE_BYTES.get(model, 0))
+    return None if pct is None else pct >= 99
 
 
 def free_card(model, ask=input):
@@ -321,6 +337,7 @@ def run():
     except Exception:
         print("\nCouldn't reach Ollama at %s - is it running?" % OLLAMA); return 2
     sizes = {m["name"]: m.get("size", 0) for m in tag_rows}
+    FILE_BYTES.update(sizes)
     tags = [m["name"] for m in tag_rows]
     try:
         ver = http(OLLAMA + "/api/version", timeout=10).get("version")
@@ -383,12 +400,13 @@ def run():
         try:
             ps = next((m for m in http(OLLAMA + "/api/ps", timeout=10).get("models", []) if m["name"] == model), None)
             if ps:
-                row["all_on_gpu"] = ps.get("size_vram", 0) >= ps.get("size", 1)
-                row["loaded_gb"] = round(ps.get("size", 0) / 2**30, 2)
                 # (Nov 28, a builder on r/ollama: "Does a result also record how much of the model ran on GPU versus CPU?") the share,
                 # not just yes/no - it explains a slow result on a model that only just fits. Apple Silicon shares one memory: always 100.
-                if ps.get("size"):
-                    row["gpu_pct"] = max(0, min(100, round(100.0 * ps.get("size_vram", 0) / ps["size"])))
+                pct = gpu_share(ps, FILE_BYTES.get(model, 0))
+                row["loaded_gb"] = round(ps.get("size", 0) / 2**30, 2)
+                if pct is not None:
+                    row["gpu_pct"] = pct
+                    row["all_on_gpu"] = pct >= 99
         except Exception:
             pass
         results.append(row)

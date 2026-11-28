@@ -86,4 +86,12 @@ h = lbt.settle({"hardware": "Arc B580", "memory_gb": None, "cards": 1}, known, a
 check("no match: keeps what was typed", h["hardware"] == "Arc B580", h)
 h = lbt.settle({"hardware": "NVIDIA GeForce RTX 4060", "memory_gb": 8, "cards": 1}, None, ask=lambda q: 1 / 0)
 check("nvidia-smi or a Mac (name and memory known): no question, no lookup", h["hardware"] == "NVIDIA GeForce RTX 4060")
+# (Nov 28, owner's spill test) Ollama's llama.cpp runner left the processor layers out of "size": 223 MB of a 6.1 GB model, "100% GPU"
+sys.path.insert(0, str(ROOT / "bench"))
+import importlib
+LT = importlib.import_module("localbit_test")
+check("gpu share: a normal load counts against the loaded size", LT.gpu_share({"size": 7 * 2**30, "size_vram": 7 * 2**30}, 6 * 2**30) == 100
+      and LT.gpu_share({"size": 10 * 2**30, "size_vram": 6 * 2**30}, 8 * 2**30) == 60)
+check("gpu share: a loaded size far under the file means the rest is outside the card", LT.gpu_share({"size": 223996804, "size_vram": 223996804}, int(6.1 * 2**30)) == 3)
+check("gpu share: nothing reported -> None", LT.gpu_share({}, 0) is None)
 print("\n%d passed, %d failed" % (ok, bad)); sys.exit(1 if bad else 0)
